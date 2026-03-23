@@ -1,11 +1,11 @@
 import { Consulta, PrediccionResponse } from '../interfaz/consulta';
 
-const API_URL = "http://localhost:8000"; // Asegúrate que coincida con tu puerto de FastAPI
+const API_URL = "http://127.0.0.1:8000"; // Asegúrate que coincida con tu puerto de FastAPI
 
 export const consultaService = {
-    // 1. Enviar los datos de la consulta al backend
+    // Crear una nueva consulta
     crear: async (datos: Consulta): Promise<any> => {
-        const response = await fetch(`${API_URL}/consultas/`, {
+        const response = await fetch(`${API_URL}/api/consultas/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(datos),
@@ -14,9 +14,16 @@ export const consultaService = {
         return await response.json();
     },
 
-    // 2. Pedirle a Gemini que analice esa consulta específica
+    // Obtener lista de consultas
+    listar: async (skip: number = 0, limit: number = 100): Promise<Consulta[]> => {
+        const response = await fetch(`${API_URL}/api/consultas/?skip=${skip}&limit=${limit}`);
+        if (!response.ok) throw new Error('Error al obtener consultas');
+        return await response.json();
+    },
+
+    // Obtener predicción de una consulta
     obtenerPrediccion: async (id: number): Promise<PrediccionResponse> => {
-        const response = await fetch(`${API_URL}/consultas/${id}/prediccion`);
+        const response = await fetch(`${API_URL}/api/consultas/${id}/prediccion`);
         if (!response.ok) throw new Error('Error al obtener predicción');
         return await response.json();
     }
