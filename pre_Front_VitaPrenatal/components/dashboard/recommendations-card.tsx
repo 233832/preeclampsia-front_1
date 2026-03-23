@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -13,11 +14,14 @@ import {
   BedDouble
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PrediccionResponse } from "@/interfaz/consulta"
+import { consultaService } from "@/servicios/consultaService"
 
 type RiskLevel = "low" | "moderate" | "high" | "very-high"
 
 interface RecommendationsCardProps {
   riskLevel: RiskLevel
+  consultationId?: string
 }
 
 const recommendationsByRisk = {
@@ -136,7 +140,25 @@ const riskLabels = {
   "very-high": "Muy Alto",
 }
 
-export function RecommendationsCard({ riskLevel }: RecommendationsCardProps) {
+export function RecommendationsCard({ riskLevel, consultationId }: RecommendationsCardProps) {
+  const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (consultationId) {
+      setLoading(true)
+      consultaService.obtenerPrediccion(parseInt(consultationId))
+        .then(setPrediction)
+        .catch((error) => {
+          console.error('Error fetching prediction:', error)
+          setPrediction(null)
+        })
+        .finally(() => setLoading(false))
+    } else {
+      setPrediction(null)
+    }
+  }, [consultationId])
+
   const recommendations = recommendationsByRisk[riskLevel]
   const styles = riskStyles[riskLevel]
 
@@ -161,22 +183,35 @@ export function RecommendationsCard({ riskLevel }: RecommendationsCardProps) {
         </p>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {recommendations.map((rec, index) => {
-            const Icon = rec.icon
-            return (
-              <div key={index} className="flex gap-3">
-                <div className={cn("p-2 rounded-lg h-fit", styles.iconBg)}>
-                  <Icon className={cn("h-4 w-4", styles.iconColor)} />
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <span className="ml-2 text-sm text-muted-foreground">Generando recomendaciones IA...</span>
+          </div>
+        ) : prediction ? (
+          <div className="space-y-4">
+            <div className="text-sm text-foreground leading-relaxed max-h-96 overflow-y-auto whitespace-pre-wrap">
+              {prediction.interpretacion}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {recommendations.map((rec, index) => {
+              const Icon = rec.icon
+              return (
+                <div key={index} className="flex gap-3">
+                  <div className={cn("p-2 rounded-lg h-fit", styles.iconBg)}>
+                    <Icon className={cn("h-4 w-4", styles.iconColor)} />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium text-sm">{rec.title}</h4>
+                    <p className="text-sm text-muted-foreground mt-0.5">{rec.description}</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <h4 className="font-medium text-sm">{rec.title}</h4>
-                  <p className="text-sm text-muted-foreground mt-0.5">{rec.description}</p>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Disclaimer */}
         <div className="mt-6 p-4 rounded-lg bg-primary/5 border border-primary/20">

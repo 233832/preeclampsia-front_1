@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { usePatients, RiskLevel as ContextRiskLevel, Consultation } from "@/lib/patient-context"
+import { consultaService } from "@/servicios/consultaService"
+import { PrediccionResponse } from "@/interfaz/consulta"
 import { MainNav } from "@/components/navigation/main-nav"
 import { PatientInfoCard } from "@/components/dashboard/patient-info-card"
 import { ObstetricHistoryCard } from "@/components/dashboard/obstetric-history-card"
@@ -63,6 +65,8 @@ export default function VitaPrenatalDashboard() {
   const [systolicData, setSystolicData] = useState<{ week: string; value: number }[]>([])
   const [diastolicData, setDiastolicData] = useState<{ week: string; value: number }[]>([])
   const [showConsultationForm, setShowConsultationForm] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
 
   // Update values when selected consultation changes
   useEffect(() => {
@@ -71,6 +75,11 @@ export default function VitaPrenatalDashboard() {
       setDiastolic(selectedConsultation.diastolic)
     }
   }, [selectedConsultation])
+
+  // Set mounted
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Update chart data when patient changes
   useEffect(() => {
@@ -260,7 +269,7 @@ export default function VitaPrenatalDashboard() {
 
           {/* Right Column - Recommendations and Notes */}
           <div className="md:col-span-2 xl:col-span-4 space-y-6">
-            <RecommendationsCard riskLevel={riskLevel} />
+            <RecommendationsCard riskLevel={riskLevel} consultationId={consultation?.id} />
             <PatientNotesCard 
               onSave={handleSaveNotes} 
               initialNotes={selectedConsultation?.notes || ""}
@@ -291,3 +300,5 @@ export default function VitaPrenatalDashboard() {
     </div>
   )
 }
+
+export const dynamic = 'force-dynamic'

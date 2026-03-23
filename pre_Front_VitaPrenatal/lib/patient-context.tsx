@@ -349,18 +349,14 @@ export function PatientProvider({ children }: { children: ReactNode }) {
       });
       
       setPatients(prev => prev.map(p => p.id === patientId ? { ...p, consultations: consultasForExp } : p));
+      
+      // Update selected consultation if this is the current patient
+      if (selectedPatient?.id === patientId) {
+        const latest = getLatestConsultation({ ...selectedPatient, consultations: consultasForExp });
+        setSelectedConsultation(latest);
+      }
     } catch (error) {
       console.error('Error adding consultation:', error);
-  }
-
-    // Update selected patient if this is the current one
-    if (selectedPatient?.id === patientId) {
-      const updatedPatient = {
-        ...selectedPatient,
-        consultations: [...selectedPatient.consultations, newConsultation],
-      }
-      setSelectedPatient(updatedPatient)
-      setSelectedConsultation(newConsultation)
     }
   }
 
