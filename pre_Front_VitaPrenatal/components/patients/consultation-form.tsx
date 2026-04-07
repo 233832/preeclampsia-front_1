@@ -15,12 +15,13 @@ import {
 } from "@/components/ui/dialog"
 import { Patient, Consultation } from "@/lib/patient-context"
 import { Activity, Calendar, Scale } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface ConsultationFormProps {
   open: boolean
   onClose: () => void
   patient: Patient
-  onSave: (consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability">) => void
+  onSave: (consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory">) => void
 }
 
 export function ConsultationForm({ open, onClose, patient, onSave }: ConsultationFormProps) {
@@ -67,7 +68,9 @@ export function ConsultationForm({ open, onClose, patient, onSave }: Consultatio
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave(formData)
+    // Extraer solo los datos clínicos de la consulta, excluyendo antecedentes médicos
+    const { previousHypertension, diabetes, familyHypertensionHistory, ...consultationData } = formData
+    onSave(consultationData)
     onClose()
   }
 
@@ -202,45 +205,49 @@ export function ConsultationForm({ open, onClose, patient, onSave }: Consultatio
             </div>
           </div>
 
-          {/* Medical History */}
+          {/* Medical History - Read Only */}
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground">Antecedentes Medicos</h3>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50">
-                <Label htmlFor="previousHypertension" className="cursor-pointer text-sm">
-                  Hipertension previa
-                </Label>
-                <Checkbox
-                  id="previousHypertension"
-                  checked={formData.previousHypertension}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, previousHypertension: checked })
-                  }
-                />
-              </div>
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50">
-                <Label htmlFor="diabetes" className="cursor-pointer text-sm">
-                  Diabetes
-                </Label>
-                <Checkbox
-                  id="diabetes"
-                  checked={formData.diabetes}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, diabetes: checked })
-                  }
-                />
-              </div>
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50">
-                <Label htmlFor="familyHistory" className="cursor-pointer text-sm">
-                  Antecedentes familiares HTA
-                </Label>
-                <Checkbox
-                  id="familyHistory"
-                  checked={formData.familyHypertensionHistory}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, familyHypertensionHistory: checked })
-                  }
-                />
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              📋 Información del Paciente (No Editable)
+            </h3>
+            <div className="p-3 rounded-lg bg-muted/30 border border-muted">
+              <p className="text-xs text-muted-foreground mb-3">
+                Estos antecedentes médicos pertenecen al perfil del paciente y no pueden modificarse desde una consulta.
+              </p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between p-2 rounded-md bg-background/50">
+                  <span className="text-sm text-foreground">Hipertensión previa</span>
+                  <span className={cn(
+                    "text-sm font-medium px-2 py-1 rounded",
+                    formData.previousHypertension
+                      ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400"
+                      : "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                  )}>
+                    {formData.previousHypertension ? "Sí" : "No"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2 rounded-md bg-background/50">
+                  <span className="text-sm text-foreground">Diabetes</span>
+                  <span className={cn(
+                    "text-sm font-medium px-2 py-1 rounded",
+                    formData.diabetes
+                      ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400"
+                      : "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                  )}>
+                    {formData.diabetes ? "Sí" : "No"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2 rounded-md bg-background/50">
+                  <span className="text-sm text-foreground">Antecedentes familiares HTA</span>
+                  <span className={cn(
+                    "text-sm font-medium px-2 py-1 rounded",
+                    formData.familyHypertensionHistory
+                      ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400"
+                      : "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                  )}>
+                    {formData.familyHypertensionHistory ? "Sí" : "No"}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

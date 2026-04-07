@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 
 const navItems = [
   {
-    label: "Dashboard",
+    label: "Monitoreo Clínico",
     href: "/",
     icon: LayoutDashboard,
   },

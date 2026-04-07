@@ -51,7 +51,7 @@ function generateBPHistoryFromConsultations(consultations: Consultation[], type:
   }))
 }
 
-export default function VitaPrenatalDashboard() {
+export default function VitaPrenatalMonitoreoClinico() {
   const { 
     selectedPatient, 
     selectedConsultation, 
@@ -113,7 +113,7 @@ export default function VitaPrenatalDashboard() {
     }
   }
 
-  const handleNewConsultation = (consultationData: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability">) => {
+  const handleNewConsultation = (consultationData: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory">) => {
     if (selectedPatient) {
       addConsultation(selectedPatient.id, consultationData)
     }
@@ -139,7 +139,7 @@ export default function VitaPrenatalDashboard() {
                 Seleccione un Paciente
               </h2>
               <p className="text-sm text-muted-foreground mb-6 max-w-sm">
-                Para ver el dashboard de prediccion de riesgo, primero seleccione un paciente desde la lista de pacientes registrados.
+                Para ver el monitoreo clínico de predicción de riesgo, primero seleccione un paciente desde la lista de pacientes registrados.
               </p>
               <Link href="/pacientes">
                 <Button className="gap-2">

@@ -17,26 +17,26 @@ interface ConsultationHistoryCardProps {
 
 const riskConfig: Record<RiskLevel, { label: string; shortLabel: string; bgColor: string; textColor: string }> = {
   none: {
-    label: "Ninguno (0%)",
-    shortLabel: "0%",
+    label: "Ninguno",
+    shortLabel: "Ninguno",
     bgColor: "bg-muted",
     textColor: "text-muted-foreground",
   },
   low: {
-    label: "Bajo (33.3%)",
-    shortLabel: "33.3%",
+    label: "Bajo",
+    shortLabel: "Bajo",
     bgColor: "bg-risk-low/15",
     textColor: "text-risk-low",
   },
   moderate: {
-    label: "Medio (66.6%)",
-    shortLabel: "66.6%",
+    label: "Medio",
+    shortLabel: "Medio",
     bgColor: "bg-risk-moderate/15",
     textColor: "text-risk-moderate",
   },
   high: {
-    label: "Alto (99.9%)",
-    shortLabel: "99.9%",
+    label: "Alto",
+    shortLabel: "Alto",
     bgColor: "bg-risk-high/15",
     textColor: "text-risk-high",
   },

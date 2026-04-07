@@ -73,7 +73,7 @@ interface PatientContextType {
   updatePatient: (id: string, patient: Partial<Omit<Patient, "consultations">>) => void
   deletePatient: (id: string) => void
   selectPatient: (patient: Patient | null) => void
-  addConsultation: (patientId: string, consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability">) => void
+  addConsultation: (patientId: string, consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory">) => void
   selectConsultation: (consultation: Consultation | null) => void
   updateConsultation: (patientId: string, consultationId: string, data: Partial<Consultation>) => void
 }
@@ -307,7 +307,7 @@ export function PatientProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const addConsultation = async (patientId: string, consultationData: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability">) => {
+  const addConsultation = async (patientId: string, consultationData: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory">) => {
     const patient = patients.find(p => p.id === patientId);
     if (!patient) return;
 

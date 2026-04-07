@@ -153,7 +153,7 @@ export function PatientsTable({ patients, onView, onEdit, onDelete }: PatientsTa
                           size="icon"
                           className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
                           onClick={() => onView(patient)}
-                          title="Ver en Dashboard"
+                          title="Ver en Monitoreo Clínico"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
