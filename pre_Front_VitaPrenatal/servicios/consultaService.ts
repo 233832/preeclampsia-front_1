@@ -18,13 +18,27 @@ export const consultaService = {
     listar: async (skip: number = 0, limit: number = 100): Promise<Consulta[]> => {
         const response = await fetch(`${API_URL}/api/consultas/?skip=${skip}&limit=${limit}`);
         if (!response.ok) throw new Error('Error al obtener consultas');
-        return await response.json();
+        const data = await response.json();
+        console.log("🌐 RESPUESTA BRUTA DEL API /api/consultas/:", data);
+        return data;
     },
 
     // Obtener predicción de una consulta
     obtenerPrediccion: async (id: number): Promise<PrediccionResponse> => {
-        const response = await fetch(`${API_URL}/api/consultas/${id}/prediccion`);
-        if (!response.ok) throw new Error('Error al obtener predicción');
-        return await response.json();
+        const url = `${API_URL}/api/consultas/${id}/prediccion`;
+        console.log(`🧪 consultaService.obtenerPrediccion -> solicitando ${url}`);
+
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            const bodyText = await response.text();
+            console.error(`⚠️ consultaService.obtenerPrediccion error ${response.status} ${response.statusText}`);
+            console.error(`⚠️ Body:`, bodyText);
+            throw new Error(`Error al obtener predicción: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log("✅ consultaService.obtenerPrediccion respuesta JSON:", data);
+        return data;
     }
 };

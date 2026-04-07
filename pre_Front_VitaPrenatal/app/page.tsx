@@ -27,11 +27,11 @@ function mapRiskLevel(level: ContextRiskLevel): DashboardRiskLevel {
     case "none":
       return "low"
     case "low":
-      return "moderate"
+      return "low"
     case "moderate":
-      return "high"
+      return "moderate"
     case "high":
-      return "very-high"
+      return "high"
     default:
       return "low"
   }
@@ -86,6 +86,9 @@ export default function VitaPrenatalDashboard() {
     if (selectedPatient && selectedPatient.consultations.length > 0) {
       setSystolicData(generateBPHistoryFromConsultations(selectedPatient.consultations, "systolic"))
       setDiastolicData(generateBPHistoryFromConsultations(selectedPatient.consultations, "diastolic"))
+    } else {
+      setSystolicData([])
+      setDiastolicData([])
     }
   }, [selectedPatient])
 
@@ -166,6 +169,44 @@ export default function VitaPrenatalDashboard() {
   // Get consultation data (use selected or latest)
   const consultation = selectedConsultation || selectedPatient.consultations[0]
   
+  // Fetch prediction when consultation changes
+  useEffect(() => {
+    const fetchPrediction = async () => {
+      if (consultation?.id) {
+        const idNumber = parseInt(consultation.id, 10);
+        console.log("🔎 fetchPrediction -> consultation.id:", consultation.id, "parsed:", idNumber);
+
+        try {
+          const pred = await consultaService.obtenerPrediccion(idNumber);
+          console.log("🎯 PREDICCIÓN OBTENIDA raw:", pred);
+
+          if (!pred) {
+            console.warn("⚠️ fetchPrediction: la API devolvió null o vacío para la predicción", { idNumber });
+            setPrediction(null);
+            return;
+          }
+
+          console.log("🎯 PREDICCIÓN OBTENIDA fields:", {
+            consulta_id: pred.consulta_id,
+            riesgo: pred.riesgo,
+            riesgo_ml: pred.riesgo_ml,
+            confianza_ml: pred.confianza_ml,
+            score_total: pred.score_total,
+            interpretacion: pred.interpretacion,
+            datos_consulta: pred.datos_consulta,
+          });
+          setPrediction(pred);
+        } catch (error) {
+          console.error("Error fetching prediction:", error);
+          setPrediction(null);
+        }
+      } else {
+        console.warn("⚠️ fetchPrediction no se ejecutó porque consultation.id no está definido", consultation);
+      }
+    };
+    fetchPrediction();
+  }, [consultation?.id]);
+  
   if (!consultation) {
     return (
       <div className="min-h-screen bg-background">
@@ -233,7 +274,19 @@ export default function VitaPrenatalDashboard() {
 
           {/* Center Column - Risk Indicator, BP Input, and Charts */}
           <div className="md:col-span-1 xl:col-span-5 space-y-6">
-            <RiskIndicatorCard riskLevel={riskLevel} />
+            <RiskIndicatorCard 
+              data={prediction ? {
+                riesgo: prediction.riesgo,
+                riesgo_ml: prediction.riesgo_ml,
+                confianza_ml: prediction.confianza_ml,
+                score_total: prediction.score_total
+              } : {
+                riesgo: "BAJO",
+                riesgo_ml: "BAJO",
+                confianza_ml: 0,
+                score_total: 0
+              }}
+            />
             
             <BloodPressureInputCard
               systolic={systolic}
@@ -269,7 +322,16 @@ export default function VitaPrenatalDashboard() {
 
           {/* Right Column - Recommendations and Notes */}
           <div className="md:col-span-2 xl:col-span-4 space-y-6">
-            <RecommendationsCard riskLevel={riskLevel} consultationId={consultation?.id} />
+            <RecommendationsCard 
+              riskLevel={riskLevel} 
+              consultationId={consultation?.id}
+              mlData={prediction ? {
+                riesgo: prediction.riesgo,
+                riesgo_ml: prediction.riesgo_ml,
+                confianza_ml: prediction.confianza_ml,
+                score_total: prediction.score_total
+              } : undefined}
+            />
             <PatientNotesCard 
               onSave={handleSaveNotes} 
               initialNotes={selectedConsultation?.notes || ""}

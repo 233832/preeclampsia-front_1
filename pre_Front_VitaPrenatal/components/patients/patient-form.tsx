@@ -128,6 +128,9 @@ export function PatientForm({ open, onClose, onSave, onUpdate, editingPatient }:
         city: formData.city,
         phone: formData.phone,
         maritalStatus: formData.maritalStatus,
+        previousHypertension: formData.previousHypertension,
+        diabetes: formData.diabetes,
+        familyHypertensionHistory: formData.familyHypertensionHistory,
         consultation: {
           date: formData.consultationDate,
           time: formData.consultationTime,

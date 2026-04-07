@@ -3,55 +3,84 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertTriangle, ShieldCheck, AlertCircle, ShieldAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useEffect } from "react"
 
 type RiskLevel = "low" | "moderate" | "high" | "very-high"
 
 interface RiskIndicatorCardProps {
-  riskLevel: RiskLevel
+  data?: {
+    riesgo: string;
+    riesgo_ml: string;
+    confianza_ml: number;
+    score_total: number;
+  }
 }
 
 const riskConfig = {
   low: {
-    label: "Riesgo Bajo",
-    probability: 0,
+    label: "Ningún Riesgo",
     icon: ShieldCheck,
+    bgColor: "bg-muted/20",
+    textColor: "text-muted-foreground",
+    borderColor: "border-muted",
+    indicatorBg: "bg-muted",
+    activeColor: "bg-muted",
+  },
+  moderate: {
+    label: "Riesgo Bajo",
+    icon: AlertCircle,
     bgColor: "bg-risk-low/10",
     textColor: "text-risk-low",
     borderColor: "border-risk-low",
     indicatorBg: "bg-risk-low",
-  },
-  moderate: {
-    label: "Riesgo Moderado",
-    probability: 33.3,
-    icon: AlertCircle,
-    bgColor: "bg-risk-moderate/10",
-    textColor: "text-risk-moderate",
-    borderColor: "border-risk-moderate",
-    indicatorBg: "bg-risk-moderate",
+    activeColor: "bg-risk-low",
   },
   high: {
-    label: "Riesgo Alto",
-    probability: 66.6,
+    label: "Riesgo Medio",
     icon: AlertTriangle,
+    bgColor: "bg-yellow-500/10",
+    textColor: "text-yellow-600",
+    borderColor: "border-yellow-500",
+    indicatorBg: "bg-yellow-500",
+    activeColor: "bg-yellow-500",
+  },
+  "very-high": {
+    label: "Riesgo Alto",
+    icon: ShieldAlert,
     bgColor: "bg-risk-high/10",
     textColor: "text-risk-high",
     borderColor: "border-risk-high",
     indicatorBg: "bg-risk-high",
-  },
-  "very-high": {
-    label: "Riesgo Muy Alto",
-    probability: 99.9,
-    icon: ShieldAlert,
-    bgColor: "bg-risk-high/15",
-    textColor: "text-risk-high",
-    borderColor: "border-risk-high",
-    indicatorBg: "bg-risk-high",
+    activeColor: "bg-risk-high",
   },
 }
 
-export function RiskIndicatorCard({ riskLevel }: RiskIndicatorCardProps) {
-  const config = riskConfig[riskLevel]
-  const Icon = config.icon
+const getRiskLevel = (riesgo: string): RiskLevel => {
+  switch (riesgo.toLowerCase()) {
+    case 'ninguno': return 'low';
+    case 'bajo': return 'moderate';
+    case 'medio': return 'high';
+    case 'alto': return 'very-high';
+    default: return 'low';
+  }
+};
+
+export function RiskIndicatorCard({ data }: RiskIndicatorCardProps) {
+  const defaultData = {
+    riesgo: "BAJO",
+    riesgo_ml: "BAJO",
+    confianza_ml: 0,
+    score_total: 0
+  };
+  
+  const currentData = data || defaultData;
+  const riskLevel = getRiskLevel(currentData.riesgo || "BAJO");
+  const config = riskConfig[riskLevel];
+  const Icon = config.icon;
+
+  useEffect(() => {
+    console.log("🎯 RiskIndicatorCard recibió data:", currentData);
+  }, [currentData])
 
   return (
     <Card className={cn("border-2 shadow-lg", config.borderColor, config.bgColor)}>
@@ -61,25 +90,39 @@ export function RiskIndicatorCard({ riskLevel }: RiskIndicatorCardProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-4 pt-2">
-        {/* Traffic Light System */}
-        <div className="flex items-center gap-2 p-3 rounded-xl bg-card border border-border/50 shadow-inner">
+        {/* Horizontal Traffic Light System - 4 levels */}
+        <div className="flex items-center justify-center gap-3 p-4 rounded-xl bg-card border border-border/50 shadow-inner">
+          {/* Ningún Riesgo - Gris */}
           <div
             className={cn(
-              "w-8 h-8 rounded-full transition-all duration-300 shadow-md",
-              riskLevel === "low" ? "bg-risk-low shadow-risk-low/50" : "bg-muted"
+              "w-6 h-6 rounded-full transition-all duration-500 shadow-md cursor-help",
+              riskLevel === "low" ? "bg-muted shadow-muted/50 scale-110" : "bg-muted/30 opacity-50"
             )}
+            title="Ningún Riesgo - Sin indicadores de preeclampsia"
           />
+          {/* Riesgo Bajo - Verde */}
           <div
             className={cn(
-              "w-8 h-8 rounded-full transition-all duration-300 shadow-md",
-              riskLevel === "moderate" ? "bg-risk-moderate shadow-risk-moderate/50" : "bg-muted"
+              "w-6 h-6 rounded-full transition-all duration-500 shadow-md cursor-help",
+              riskLevel === "moderate" ? "bg-risk-low shadow-risk-low/50 scale-110" : "bg-risk-low/30 opacity-50"
             )}
+            title="Riesgo Bajo - Monitoreo regular recomendado"
           />
+          {/* Riesgo Medio - Amarillo */}
           <div
             className={cn(
-              "w-8 h-8 rounded-full transition-all duration-300 shadow-md",
-              riskLevel === "high" || riskLevel === "very-high" ? "bg-risk-high shadow-risk-high/50" : "bg-muted"
+              "w-6 h-6 rounded-full transition-all duration-500 shadow-md cursor-help",
+              riskLevel === "high" ? "bg-yellow-500 shadow-yellow-500/50 scale-110" : "bg-yellow-500/30 opacity-50"
             )}
+            title="Riesgo Medio - Atención médica inmediata requerida"
+          />
+          {/* Riesgo Alto - Rojo */}
+          <div
+            className={cn(
+              "w-6 h-6 rounded-full transition-all duration-500 shadow-md cursor-help",
+              riskLevel === "very-high" ? "bg-risk-high shadow-risk-high/50 scale-110" : "bg-risk-high/30 opacity-50"
+            )}
+            title="Riesgo Alto - Intervención médica urgente necesaria"
           />
         </div>
 
@@ -91,32 +134,21 @@ export function RiskIndicatorCard({ riskLevel }: RiskIndicatorCardProps) {
           </span>
         </div>
 
-        {/* Probability Display */}
+        {/* ML Risk and Confidence */}
         <div className="text-center">
-          <p className="text-xs text-muted-foreground mb-1">
-            Probabilidad estimada
+          <p className="text-xs text-muted-foreground">
+            ML: {currentData.riesgo_ml || 'N/A'}
           </p>
-          <div className="flex items-baseline justify-center gap-0.5">
-            <span className={cn("text-4xl font-bold", config.textColor)}>
-              {config.probability}
-            </span>
-            <span className={cn("text-xl font-semibold", config.textColor)}>%</span>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Confianza: {typeof currentData.confianza_ml === 'number' ? `${currentData.confianza_ml}%` : 'N/A'}
+          </p>
         </div>
 
-        {/* Progress Bar */}
-        <div className="w-full px-2">
-          <div className="h-2.5 w-full bg-muted rounded-full overflow-hidden">
-            <div
-              className={cn("h-full rounded-full transition-all duration-500", config.indicatorBg)}
-              style={{ width: `${config.probability}%` }}
-            />
-          </div>
-          <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-            <span>0%</span>
-            <span>50%</span>
-            <span>100%</span>
-          </div>
+        {/* Score - Less prominent */}
+        <div className="text-center">
+          <p className="text-xs text-muted-foreground">
+            Score: {typeof currentData.score_total === 'number' ? currentData.score_total.toFixed(2) : 'N/A'}
+          </p>
         </div>
       </CardContent>
     </Card>

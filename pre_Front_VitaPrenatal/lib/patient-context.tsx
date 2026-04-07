@@ -7,6 +7,21 @@ import { consultaService } from '@/servicios/consultaService';
 
 export type RiskLevel = "none" | "low" | "moderate" | "high"
 
+function mapApiRisk(riesgo: string): RiskLevel {
+  switch (riesgo.toUpperCase()) {
+    case "NINGUNO":
+      return "none"
+    case "BAJO":
+      return "low"
+    case "MEDIO":
+      return "moderate"
+    case "ALTO":
+      return "high"
+    default:
+      return "none"
+  }
+}
+
 export interface Consultation {
   id: string
   date: string
@@ -113,38 +128,29 @@ export function PatientProvider({ children }: { children: ReactNode }) {
       try {
         const expedientes = await expedienteService.listar();
         const allConsultas = await consultaService.listar();
+        console.log("🔍 CONSULTAS DEL API:", allConsultas);
         const patientMap = new Map<string, Patient>();
 
         for (const exp of expedientes) {
           const paciente = await pacienteService.obtenerPorId(exp.paciente_id);
-          const consultasForExp = allConsultas.filter(c => c.expediente_id === exp.id).map(c => ({
-            id: c.id.toString(),
-            date: c.fecha_hora_consulta.split('T')[0],
-            time: c.fecha_hora_consulta.split('T')[1].slice(0,5),
-            gestationalWeek: c.edad_gestacional,
-            weight: c.peso,
-            height: c.altura,
-            bmi: c.imc,
-            systolic: c.presion_sistolica,
-            diastolic: c.presion_diastolica,
-            previousHypertension: paciente.hipertension_previa,
-            diabetes: paciente.diabetes,
-            familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
-            riskLevel: 'none' as RiskLevel, // will be calculated
-            riskProbability: 0,
-          }));
-
-          // Calculate risk for each consultation
-          consultasForExp.forEach(consult => {
-            const { level, probability } = calculateRiskLevel(
-              consult.systolic,
-              consult.diastolic,
-              consult.previousHypertension,
-              consult.diabetes,
-              consult.familyHypertensionHistory
-            );
-            consult.riskLevel = level;
-            consult.riskProbability = probability;
+          const consultasForExp = allConsultas.filter(c => c.expediente_id === exp.id).map(c => {
+            console.log(`📋 Procesando consulta ID ${c.id}:`, { riesgo: c.riesgo, presion_sistolica: c.presion_sistolica, presion_diastolica: c.presion_diastolica, imc: c.imc });
+            return {
+              id: c.id.toString(),
+              date: c.fecha_hora_consulta.split('T')[0],
+              time: c.fecha_hora_consulta.split('T')[1].slice(0,5),
+              gestationalWeek: c.edad_gestacional,
+              weight: c.peso,
+              height: c.altura,
+              bmi: c.imc,
+              systolic: c.presion_sistolica,
+              diastolic: c.presion_diastolica,
+              previousHypertension: paciente.hipertension_previa,
+              diabetes: paciente.diabetes,
+              familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
+              riskLevel: mapApiRisk(c.riesgo || "NINGUNO"),
+              riskProbability: 0, // Could be calculated or from API if available
+            }
           });
 
           const patient: Patient = {
@@ -184,11 +190,13 @@ export function PatientProvider({ children }: { children: ReactNode }) {
         ciudad: patientInfo.city,
         telefono: patientInfo.phone,
         estado_civil: patientInfo.maritalStatus,
-        hipertension_previa: patientInfo.previousHypertension,
-        diabetes: patientInfo.diabetes,
-        antecedentes_familia_hipertension: patientInfo.familyHypertensionHistory,
+        hipertension_previa: patientInfo.previousHypertension ?? false,
+        diabetes: patientInfo.diabetes ?? false,
+        antecedentes_familia_hipertension: patientInfo.familyHypertensionHistory ?? false,
       };
+      console.log("🛠️ Enviando paciente al backend:", pacienteData);
       const pacienteResponse = await pacienteService.crear(pacienteData);
+      console.log("✅ Paciente creado (respuesta backend):", pacienteResponse);
       
       // Create expediente
       const expedienteData = { paciente_id: pacienteResponse.id };
@@ -316,7 +324,9 @@ export function PatientProvider({ children }: { children: ReactNode }) {
         presion_sistolica: consultationData.systolic,
         presion_diastolica: consultationData.diastolic,
       };
-      await consultaService.crear(consultaData);
+      console.log("🛠️ Enviando consulta al backend:", consultaData);
+      const nuevaConsulta = await consultaService.crear(consultaData);
+      console.log("✅ Consulta creada (respuesta backend):", nuevaConsulta);
       
       // Reload consultations for this patient
       const allConsultas = await consultaService.listar();
