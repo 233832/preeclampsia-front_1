@@ -1,8 +1,26 @@
 "use client"
 
-import { createContext, useContext, useState, ReactNode } from "react"
+import { createContext, useContext, useState, ReactNode, useEffect } from "react"
+import { pacienteService } from '@/servicios/pacienteService';
+import { expedienteService } from '@/servicios/expedienteService';
+import { consultaService } from '@/servicios/consultaService';
 
 export type RiskLevel = "none" | "low" | "moderate" | "high"
+
+function mapApiRisk(riesgo: string): RiskLevel {
+  switch (riesgo.toUpperCase()) {
+    case "NINGUNO":
+      return "none"
+    case "BAJO":
+      return "low"
+    case "MEDIO":
+      return "moderate"
+    case "ALTO":
+      return "high"
+    default:
+      return "none"
+  }
+}
 
 export interface Consultation {
   id: string
@@ -30,6 +48,9 @@ export interface Patient {
   city: string
   phone: string
   maritalStatus: string
+  previousHypertension: boolean
+  diabetes: boolean
+  familyHypertensionHistory: boolean
   consultations: Consultation[]
 }
 
@@ -45,6 +66,7 @@ export function getLatestConsultation(patient: Patient): Consultation | null {
 
 interface PatientContextType {
   patients: Patient[]
+  loading: boolean
   selectedPatient: Patient | null
   selectedConsultation: Consultation | null
   addPatient: (patient: Omit<Patient, "id" | "consultations"> & { consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability"> }) => void
@@ -93,170 +115,164 @@ function calculateRiskLevel(
 }
 
 // Sample patients data with consultations
-const initialPatients: Patient[] = [
-  {
-    id: "1",
-    name: "Maria Garcia Lopez",
-    age: 32,
-    address: "Calle Principal 123",
-    city: "Ciudad de Mexico",
-    phone: "555-1234567",
-    maritalStatus: "Casada",
-    consultations: [
-      {
-        id: "c1-1",
-        date: "2026-02-15",
-        time: "09:00",
-        gestationalWeek: 18,
-        weight: 68,
-        height: 165,
-        bmi: 24.98,
-        systolic: 115,
-        diastolic: 72,
-        previousHypertension: false,
-        diabetes: false,
-        familyHypertensionHistory: true,
-        riskLevel: "none",
-        riskProbability: 0,
-      },
-      {
-        id: "c1-2",
-        date: "2026-03-01",
-        time: "10:30",
-        gestationalWeek: 20,
-        weight: 70,
-        height: 165,
-        bmi: 25.71,
-        systolic: 118,
-        diastolic: 76,
-        previousHypertension: false,
-        diabetes: false,
-        familyHypertensionHistory: true,
-        riskLevel: "none",
-        riskProbability: 0,
-      },
-      {
-        id: "c1-3",
-        date: "2026-03-22",
-        time: "10:30",
-        gestationalWeek: 24,
-        weight: 72,
-        height: 165,
-        bmi: 26.4,
-        systolic: 126,
-        diastolic: 81,
-        previousHypertension: false,
-        diabetes: false,
-        familyHypertensionHistory: true,
-        riskLevel: "low",
-        riskProbability: 33.3,
-      },
-    ],
-  },
-  {
-    id: "2",
-    name: "Ana Martinez Ruiz",
-    age: 28,
-    address: "Av. Reforma 456",
-    city: "Guadalajara",
-    phone: "555-9876543",
-    maritalStatus: "Soltera",
-    consultations: [
-      {
-        id: "c2-1",
-        date: "2026-03-20",
-        time: "09:00",
-        gestationalWeek: 18,
-        weight: 65,
-        height: 160,
-        bmi: 25.4,
-        systolic: 118,
-        diastolic: 75,
-        previousHypertension: false,
-        diabetes: false,
-        familyHypertensionHistory: false,
-        riskLevel: "none",
-        riskProbability: 0,
-      },
-    ],
-  },
-  {
-    id: "3",
-    name: "Carmen Hernandez Vega",
-    age: 35,
-    address: "Blvd. Centro 789",
-    city: "Monterrey",
-    phone: "555-4567890",
-    maritalStatus: "Casada",
-    consultations: [
-      {
-        id: "c3-1",
-        date: "2026-02-10",
-        time: "11:00",
-        gestationalWeek: 24,
-        weight: 75,
-        height: 158,
-        bmi: 30.0,
-        systolic: 135,
-        diastolic: 85,
-        previousHypertension: true,
-        diabetes: true,
-        familyHypertensionHistory: true,
-        riskLevel: "moderate",
-        riskProbability: 66.6,
-      },
-      {
-        id: "c3-2",
-        date: "2026-03-21",
-        time: "14:15",
-        gestationalWeek: 30,
-        weight: 78,
-        height: 158,
-        bmi: 31.2,
-        systolic: 142,
-        diastolic: 92,
-        previousHypertension: true,
-        diabetes: true,
-        familyHypertensionHistory: true,
-        riskLevel: "high",
-        riskProbability: 99.9,
-      },
-    ],
-  },
-]
+const initialPatients: Patient[] = []
 
 export function PatientProvider({ children }: { children: ReactNode }) {
   const [patients, setPatients] = useState<Patient[]>(initialPatients)
+  const [loading, setLoading] = useState(true)
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null)
 
-  const addPatient = (patientData: Omit<Patient, "id" | "consultations"> & { consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability"> }) => {
-    const { consultation, ...patientInfo } = patientData
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const expedientes = await expedienteService.listar();
+        const allConsultas = await consultaService.listar();
+        console.log("🔍 CONSULTAS DEL API:", allConsultas);
+        const patientMap = new Map<string, Patient>();
+
+        for (const exp of expedientes) {
+          const paciente = await pacienteService.obtenerPorId(exp.paciente_id);
+          const consultasForExp = allConsultas.filter(c => c.expediente_id === exp.id).map(c => {
+            console.log(`📋 Procesando consulta ID ${c.id}:`, { riesgo: c.riesgo, presion_sistolica: c.presion_sistolica, presion_diastolica: c.presion_diastolica, imc: c.imc });
+            return {
+              id: c.id.toString(),
+              date: c.fecha_hora_consulta.split('T')[0],
+              time: c.fecha_hora_consulta.split('T')[1].slice(0,5),
+              gestationalWeek: c.edad_gestacional,
+              weight: c.peso,
+              height: c.altura,
+              bmi: c.imc,
+              systolic: c.presion_sistolica,
+              diastolic: c.presion_diastolica,
+              previousHypertension: paciente.hipertension_previa,
+              diabetes: paciente.diabetes,
+              familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
+              riskLevel: mapApiRisk(c.riesgo || "NINGUNO"),
+              riskProbability: 0, // Could be calculated or from API if available
+            }
+          });
+
+          const patient: Patient = {
+            id: exp.id.toString(),
+            name: paciente.nombre,
+            age: paciente.edad,
+            address: paciente.domicilio,
+            city: paciente.ciudad,
+            phone: paciente.telefono,
+            maritalStatus: paciente.estado_civil,
+            previousHypertension: paciente.hipertension_previa,
+            diabetes: paciente.diabetes,
+            familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
+            consultations: consultasForExp,
+          };
+          patientMap.set(exp.id.toString(), patient);
+        }
+        setPatients(Array.from(patientMap.values()));
+      } catch (error) {
+        console.error('Error loading data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  const addPatient = async (patientData: Omit<Patient, "id" | "consultations"> & { consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability"> }) => {
+    const { consultation, ...patientInfo } = patientData;
     
-    const bmi = calculateBMI(consultation.weight, consultation.height)
-    const { level, probability } = calculateRiskLevel(
-      consultation.systolic,
-      consultation.diastolic,
-      consultation.previousHypertension,
-      consultation.diabetes,
-      consultation.familyHypertensionHistory
-    )
-
-    const newConsultation: Consultation = {
-      ...consultation,
-      id: `c-${Date.now()}`,
-      bmi,
-      riskLevel: level,
-      riskProbability: probability,
+    try {
+      // Create paciente
+      const pacienteData = {
+        nombre: patientInfo.name,
+        edad: patientInfo.age,
+        domicilio: patientInfo.address,
+        ciudad: patientInfo.city,
+        telefono: patientInfo.phone,
+        estado_civil: patientInfo.maritalStatus,
+        hipertension_previa: patientInfo.previousHypertension ?? false,
+        diabetes: patientInfo.diabetes ?? false,
+        antecedentes_familia_hipertension: patientInfo.familyHypertensionHistory ?? false,
+      };
+      console.log("🛠️ Enviando paciente al backend:", pacienteData);
+      const pacienteResponse = await pacienteService.crear(pacienteData);
+      console.log("✅ Paciente creado (respuesta backend):", pacienteResponse);
+      
+      // Create expediente
+      const expedienteData = { paciente_id: pacienteResponse.id };
+      const expedienteResponse = await expedienteService.crear(expedienteData);
+      
+      // Create consulta
+      const consultaData = {
+        paciente_id: pacienteResponse.id,
+        expediente_id: expedienteResponse.id,
+        fecha_hora_consulta: `${consultation.date}T${consultation.time}:00`,
+        edad_madre: patientInfo.age,
+        edad_gestacional: consultation.gestationalWeek,
+        altura: consultation.height,
+        peso: consultation.weight,
+        imc: calculateBMI(consultation.weight, consultation.height),
+        presion_sistolica: consultation.systolic,
+        presion_diastolica: consultation.diastolic,
+      };
+      await consultaService.crear(consultaData);
+      
+      // Reload data
+      // For simplicity, reload all
+      const expedientes = await expedienteService.listar();
+      // ... same as in useEffect
+      // To avoid duplication, perhaps extract to a function
+      // For now, duplicate
+      const allConsultas = await consultaService.listar();
+      const patientMap = new Map<string, Patient>();
+      for (const exp of expedientes) {
+        const paciente = await pacienteService.obtenerPorId(exp.paciente_id);
+        const consultasForExp = allConsultas.filter(c => c.expediente_id === exp.id).map(c => ({
+          id: c.id.toString(),
+          date: c.fecha_hora_consulta.split('T')[0],
+          time: c.fecha_hora_consulta.split('T')[1].slice(0,5),
+          gestationalWeek: c.edad_gestacional,
+          weight: c.peso,
+          height: c.altura,
+          bmi: c.imc,
+          systolic: c.presion_sistolica,
+          diastolic: c.presion_diastolica,
+          previousHypertension: paciente.hipertension_previa,
+          diabetes: paciente.diabetes,
+          familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
+          riskLevel: 'none' as RiskLevel,
+          riskProbability: 0,
+        }));
+        consultasForExp.forEach(consult => {
+          const { level, probability } = calculateRiskLevel(
+            consult.systolic,
+            consult.diastolic,
+            consult.previousHypertension,
+            consult.diabetes,
+            consult.familyHypertensionHistory
+          );
+          consult.riskLevel = level;
+          consult.riskProbability = probability;
+        });
+        const patient: Patient = {
+          id: exp.id.toString(),
+          name: paciente.nombre,
+          age: paciente.edad,
+          address: paciente.domicilio,
+          city: paciente.ciudad,
+          phone: paciente.telefono,
+          maritalStatus: paciente.estado_civil,
+          previousHypertension: paciente.hipertension_previa,
+          diabetes: paciente.diabetes,
+          familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
+          consultations: consultasForExp,
+        };
+        patientMap.set(exp.id.toString(), patient);
+      }
+      setPatients(Array.from(patientMap.values()));
+    } catch (error) {
+      console.error('Error adding patient:', error);
     }
-
-    const newPatient: Patient = {
-      ...patientInfo,
-      id: Date.now().toString(),
-      consultations: [newConsultation],
-    }
-
-    setPatients((prev) => [...prev, newPatient])
   }
 
   const updatePatient = (id: string, patientData: Partial<Omit<Patient, "consultations">>) => {
@@ -268,11 +284,16 @@ export function PatientProvider({ children }: { children: ReactNode }) {
     )
   }
 
-  const deletePatient = (id: string) => {
-    setPatients((prev) => prev.filter((p) => p.id !== id))
-    if (selectedPatient?.id === id) {
-      setSelectedPatient(null)
-      setSelectedConsultation(null)
+  const deletePatient = async (id: string) => {
+    try {
+      await expedienteService.eliminar(parseInt(id));
+      setPatients((prev) => prev.filter((p) => p.id !== id))
+      if (selectedPatient?.id === id) {
+        setSelectedPatient(null)
+        setSelectedConsultation(null)
+      }
+    } catch (error) {
+      console.error('Error deleting patient:', error);
     }
   }
 
@@ -286,42 +307,66 @@ export function PatientProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const addConsultation = (patientId: string, consultationData: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability">) => {
-    const bmi = calculateBMI(consultationData.weight, consultationData.height)
-    const { level, probability } = calculateRiskLevel(
-      consultationData.systolic,
-      consultationData.diastolic,
-      consultationData.previousHypertension,
-      consultationData.diabetes,
-      consultationData.familyHypertensionHistory
-    )
+  const addConsultation = async (patientId: string, consultationData: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability">) => {
+    const patient = patients.find(p => p.id === patientId);
+    if (!patient) return;
 
-    const newConsultation: Consultation = {
-      ...consultationData,
-      id: `c-${Date.now()}`,
-      bmi,
-      riskLevel: level,
-      riskProbability: probability,
-    }
-
-    setPatients((prev) =>
-      prev.map((p) => {
-        if (p.id !== patientId) return p
-        return {
-          ...p,
-          consultations: [...p.consultations, newConsultation],
-        }
-      })
-    )
-
-    // Update selected patient if this is the current one
-    if (selectedPatient?.id === patientId) {
-      const updatedPatient = {
-        ...selectedPatient,
-        consultations: [...selectedPatient.consultations, newConsultation],
+    try {
+      const consultaData = {
+        paciente_id: parseInt(patientId), // wait, patientId is expediente id, but paciente_id is separate.
+        expediente_id: parseInt(patientId),
+        fecha_hora_consulta: `${consultationData.date}T${consultationData.time}:00`,
+        edad_madre: patient.age,
+        edad_gestacional: consultationData.gestationalWeek,
+        altura: consultationData.height,
+        peso: consultationData.weight,
+        imc: calculateBMI(consultationData.weight, consultationData.height),
+        presion_sistolica: consultationData.systolic,
+        presion_diastolica: consultationData.diastolic,
+      };
+      console.log("🛠️ Enviando consulta al backend:", consultaData);
+      const nuevaConsulta = await consultaService.crear(consultaData);
+      console.log("✅ Consulta creada (respuesta backend):", nuevaConsulta);
+      
+      // Reload consultations for this patient
+      const allConsultas = await consultaService.listar();
+      const consultasForExp = allConsultas.filter(c => c.expediente_id === parseInt(patientId)).map(c => ({
+        id: c.id.toString(),
+        date: c.fecha_hora_consulta.split('T')[0],
+        time: c.fecha_hora_consulta.split('T')[1].slice(0,5),
+        gestationalWeek: c.edad_gestacional,
+        weight: c.peso,
+        height: c.altura,
+        bmi: c.imc,
+        systolic: c.presion_sistolica,
+        diastolic: c.presion_diastolica,
+        previousHypertension: patient.previousHypertension,
+        diabetes: patient.diabetes,
+        familyHypertensionHistory: patient.familyHypertensionHistory,
+        riskLevel: 'none' as RiskLevel,
+        riskProbability: 0,
+      }));
+      consultasForExp.forEach(consult => {
+        const { level, probability } = calculateRiskLevel(
+          consult.systolic,
+          consult.diastolic,
+          consult.previousHypertension,
+          consult.diabetes,
+          consult.familyHypertensionHistory
+        );
+        consult.riskLevel = level;
+        consult.riskProbability = probability;
+      });
+      
+      setPatients(prev => prev.map(p => p.id === patientId ? { ...p, consultations: consultasForExp } : p));
+      
+      // Update selected consultation if this is the current patient
+      if (selectedPatient?.id === patientId) {
+        const latest = getLatestConsultation({ ...selectedPatient, consultations: consultasForExp });
+        setSelectedConsultation(latest);
       }
-      setSelectedPatient(updatedPatient)
-      setSelectedConsultation(newConsultation)
+    } catch (error) {
+      console.error('Error adding consultation:', error);
     }
   }
 
@@ -401,6 +446,7 @@ export function PatientProvider({ children }: { children: ReactNode }) {
     <PatientContext.Provider
       value={{
         patients,
+        loading,
         selectedPatient,
         selectedConsultation,
         addPatient,

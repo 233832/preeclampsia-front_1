@@ -35,22 +35,22 @@ interface PatientsTableProps {
 
 const riskConfig: Record<RiskLevel, { label: string; bgColor: string; textColor: string }> = {
   none: {
-    label: "Ninguno (0%)",
+    label: "Ninguno",
     bgColor: "bg-muted",
     textColor: "text-muted-foreground",
   },
   low: {
-    label: "Bajo (33.3%)",
+    label: "Bajo",
     bgColor: "bg-risk-low/15",
     textColor: "text-risk-low",
   },
   moderate: {
-    label: "Medio (66.6%)",
+    label: "Medio",
     bgColor: "bg-risk-moderate/15",
     textColor: "text-risk-moderate",
   },
   high: {
-    label: "Alto (99.9%)",
+    label: "Alto",
     bgColor: "bg-risk-high/15",
     textColor: "text-risk-high",
   },

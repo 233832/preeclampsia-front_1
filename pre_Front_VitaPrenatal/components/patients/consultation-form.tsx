@@ -39,29 +39,29 @@ export function ConsultationForm({ open, onClose, patient, onSave }: Consultatio
     height: latestConsultation?.height ?? 160,
     systolic: 120,
     diastolic: 80,
-    previousHypertension: latestConsultation?.previousHypertension ?? false,
-    diabetes: latestConsultation?.diabetes ?? false,
-    familyHypertensionHistory: latestConsultation?.familyHypertensionHistory ?? false,
+    previousHypertension: patient.previousHypertension,
+    diabetes: patient.diabetes,
+    familyHypertensionHistory: patient.familyHypertensionHistory,
     date: new Date().toISOString().split("T")[0],
     time: new Date().toTimeString().slice(0, 5),
   })
 
   useEffect(() => {
-    if (open && latestConsultation) {
+    if (open) {
       setFormData({
-        gestationalWeek: Math.min(latestConsultation.gestationalWeek + 2, 42),
-        weight: latestConsultation.weight,
-        height: latestConsultation.height,
+        gestationalWeek: latestConsultation ? Math.min(latestConsultation.gestationalWeek + 2, 42) : 12,
+        weight: latestConsultation?.weight ?? 60,
+        height: latestConsultation?.height ?? 160,
         systolic: 120,
         diastolic: 80,
-        previousHypertension: latestConsultation.previousHypertension,
-        diabetes: latestConsultation.diabetes,
-        familyHypertensionHistory: latestConsultation.familyHypertensionHistory,
+        previousHypertension: patient.previousHypertension,
+        diabetes: patient.diabetes,
+        familyHypertensionHistory: patient.familyHypertensionHistory,
         date: new Date().toISOString().split("T")[0],
         time: new Date().toTimeString().slice(0, 5),
       })
     }
-  }, [open, latestConsultation])
+  }, [open, latestConsultation, patient])
 
   const calculatedBMI = (formData.weight / ((formData.height / 100) ** 2)).toFixed(1)
 

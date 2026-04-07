@@ -1,7 +1,9 @@
 "use client"
 
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { 
   Sparkles, 
   Calendar, 
@@ -10,14 +12,24 @@ import {
   HeartPulse,
   Info,
   Salad,
-  BedDouble
+  BedDouble,
+  Bot
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PrediccionResponse } from "@/interfaz/consulta"
+import { consultaService } from "@/servicios/consultaService"
 
 type RiskLevel = "low" | "moderate" | "high" | "very-high"
 
 interface RecommendationsCardProps {
   riskLevel: RiskLevel
+  consultationId?: string
+  mlData?: {
+    riesgo: string;
+    riesgo_ml: string;
+    confianza_ml: number;
+    score_total: number;
+  }
 }
 
 const recommendationsByRisk = {
@@ -131,14 +143,43 @@ const riskStyles = {
 
 const riskLabels = {
   low: "Bajo",
-  moderate: "Moderado",
+  moderate: "Medio",
   high: "Alto",
   "very-high": "Muy Alto",
 }
 
-export function RecommendationsCard({ riskLevel }: RecommendationsCardProps) {
-  const recommendations = recommendationsByRisk[riskLevel]
-  const styles = riskStyles[riskLevel]
+const getRiskLevelFromML = (riesgo: string): RiskLevel => {
+  switch (riesgo.toLowerCase()) {
+    case 'bajo': return 'low';
+    case 'medio': return 'moderate';
+    case 'alto': return 'high';
+    default: return 'low';
+  }
+};
+
+export function RecommendationsCard({ riskLevel, consultationId, mlData }: RecommendationsCardProps) {
+  const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  // Use ML data if available, otherwise use the provided riskLevel
+  const currentRiskLevel = mlData ? getRiskLevelFromML(mlData.riesgo) : riskLevel
+
+  const handleGenerateAI = async () => {
+    if (!consultationId) return
+
+    setLoading(true)
+    try {
+      const pred = await consultaService.obtenerPrediccion(parseInt(consultationId))
+      setPrediction(pred)
+    } catch (error) {
+      console.error('Error fetching prediction:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const recommendations = recommendationsByRisk[currentRiskLevel]
+  const styles = riskStyles[currentRiskLevel]
 
   return (
     <Card className="border-border/50 shadow-sm">
@@ -153,7 +194,7 @@ export function RecommendationsCard({ riskLevel }: RecommendationsCardProps) {
             </Badge>
           </CardTitle>
           <Badge variant="outline" className={cn("text-xs flex-shrink-0", styles.badge)}>
-            {riskLabels[riskLevel]}
+            {riskLabels[currentRiskLevel]}
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
@@ -161,22 +202,64 @@ export function RecommendationsCard({ riskLevel }: RecommendationsCardProps) {
         </p>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {recommendations.map((rec, index) => {
-            const Icon = rec.icon
-            return (
-              <div key={index} className="flex gap-3">
-                <div className={cn("p-2 rounded-lg h-fit", styles.iconBg)}>
-                  <Icon className={cn("h-4 w-4", styles.iconColor)} />
+        {prediction ? (
+          <div className="space-y-4">
+            <div className="text-sm text-foreground leading-relaxed max-h-96 overflow-y-auto whitespace-pre-wrap">
+              {prediction.interpretacion}
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setPrediction(null)}
+              className="w-full"
+            >
+              <Bot className="h-4 w-4 mr-2" />
+              Ocultar Análisis IA
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {recommendations.map((rec, index) => {
+              const Icon = rec.icon
+              return (
+                <div key={index} className="flex gap-3">
+                  <div className={cn("p-2 rounded-lg h-fit", styles.iconBg)}>
+                    <Icon className={cn("h-4 w-4", styles.iconColor)} />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium text-sm">{rec.title}</h4>
+                    <p className="text-sm text-muted-foreground mt-0.5">{rec.description}</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <h4 className="font-medium text-sm">{rec.title}</h4>
-                  <p className="text-sm text-muted-foreground mt-0.5">{rec.description}</p>
-                </div>
+              )
+            })}
+            
+            {consultationId && (
+              <div className="pt-4 border-t">
+                <Button 
+                  onClick={handleGenerateAI} 
+                  disabled={loading}
+                  className="w-full gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Generando...
+                    </>
+                  ) : (
+                    <>
+                      <Bot className="h-4 w-4" />
+                      Generar Análisis con IA
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  Obtén recomendaciones personalizadas con Gemini AI
+                </p>
               </div>
-            )
-          })}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Disclaimer */}
         <div className="mt-6 p-4 rounded-lg bg-primary/5 border border-primary/20">
