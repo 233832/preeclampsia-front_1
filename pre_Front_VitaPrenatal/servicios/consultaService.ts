@@ -23,6 +23,14 @@ export const consultaService = {
         return data;
     },
 
+    // Obtener detalles de una consulta por ID
+    obtenerPorId: async (id: number): Promise<Consulta> => {
+        const response = await fetch(`${API_URL}/api/consultas/${id}`);
+        if (!response.ok) throw new Error('Error al obtener consulta por ID');
+        return await response.json();
+    },
+
+
     // Obtener predicción de una consulta
     obtenerPrediccion: async (id: number): Promise<PrediccionResponse> => {
         const url = `${API_URL}/api/consultas/${id}/prediccion`;

@@ -67,6 +67,39 @@ export default function VitaPrenatalMonitoreoClinico() {
   const [showConsultationForm, setShowConsultationForm] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
+  const [lastUpdated, setLastUpdated] = useState(() => new Date().toLocaleString())
+
+  const fetchPredictionForConsultation = async (consultationId?: string) => {
+    if (!consultationId) {
+      console.warn("⚠️ fetchPredictionForConsultation: consultationId no definido")
+      setPrediction(null)
+      return
+    }
+
+    const idNumber = parseInt(consultationId, 10)
+    console.log("🔎 fetchPrediction -> consultation.id:", consultationId, "parsed:", idNumber)
+
+    try {
+      const pred = await consultaService.obtenerPrediccion(idNumber)
+      console.log("🎯 PREDICCIÓN OBTENIDA raw:", pred)
+
+      if (!pred) {
+        console.warn("⚠️ fetchPredictionForConsultation: la API devolvió null o vacío para la predicción", { idNumber })
+        setPrediction(null)
+        return
+      }
+
+      setPrediction(pred)
+    } catch (error) {
+      console.error("Error fetching prediction:", error)
+      setPrediction(null)
+    }
+  }
+
+  const handleRefresh = async () => {
+    await fetchPredictionForConsultation(consultation?.id)
+    setLastUpdated(new Date().toLocaleString())
+  }
 
   // Update values when selected consultation changes
   useEffect(() => {
@@ -171,46 +204,17 @@ export default function VitaPrenatalMonitoreoClinico() {
   
   // Fetch prediction when consultation changes
   useEffect(() => {
-    const fetchPrediction = async () => {
-      if (consultation?.id) {
-        const idNumber = parseInt(consultation.id, 10);
-        console.log("🔎 fetchPrediction -> consultation.id:", consultation.id, "parsed:", idNumber);
-
-        try {
-          const pred = await consultaService.obtenerPrediccion(idNumber);
-          console.log("🎯 PREDICCIÓN OBTENIDA raw:", pred);
-
-          if (!pred) {
-            console.warn("⚠️ fetchPrediction: la API devolvió null o vacío para la predicción", { idNumber });
-            setPrediction(null);
-            return;
-          }
-
-          console.log("🎯 PREDICCIÓN OBTENIDA fields:", {
-            consulta_id: pred.consulta_id,
-            riesgo: pred.riesgo,
-            riesgo_ml: pred.riesgo_ml,
-            confianza_ml: pred.confianza_ml,
-            score_total: pred.score_total,
-            interpretacion: pred.interpretacion,
-            datos_consulta: pred.datos_consulta,
-          });
-          setPrediction(pred);
-        } catch (error) {
-          console.error("Error fetching prediction:", error);
-          setPrediction(null);
-        }
-      } else {
-        console.warn("⚠️ fetchPrediction no se ejecutó porque consultation.id no está definido", consultation);
-      }
-    };
-    fetchPrediction();
-  }, [consultation?.id]);
+    fetchPredictionForConsultation(consultation?.id)
+  }, [consultation?.id])
   
   if (!consultation) {
     return (
       <div className="min-h-screen bg-background">
-        <MainNav />
+        <MainNav
+          showRefresh={selectedPatient !== null}
+          onRefresh={handleRefresh}
+          lastUpdated={lastUpdated}
+        />
         <main className="container mx-auto px-4 py-6">
           <Card className="border-border/50 max-w-lg mx-auto mt-12">
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
@@ -256,7 +260,11 @@ export default function VitaPrenatalMonitoreoClinico() {
 
   return (
     <div className="min-h-screen bg-background">
-      <MainNav />
+      <MainNav
+        showRefresh={selectedPatient !== null}
+        onRefresh={handleRefresh}
+        lastUpdated={lastUpdated}
+      />
       
       <main className="container mx-auto px-4 py-6 overflow-x-hidden">
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-12">
