@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   Heart,
   LayoutDashboard,
@@ -46,6 +46,7 @@ export function MainNav({
   subHeader,
 }: MainNavProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const { configuraciones, notifications } = useConfiguration()
 
   const unreadCount = notifications.filter(
@@ -115,22 +116,24 @@ export function MainNav({
               )}
 
               <Button
-                asChild
+                type="button"
                 variant={notificationsActive ? "secondary" : "ghost"}
                 size="icon"
+                aria-label="Ver notificaciones"
+                onClick={() => {
+                  router.push("/notificaciones")
+                }}
                 className={cn(
                   "relative",
                   notificationsActive && "bg-primary/10 text-primary hover:bg-primary/15",
                 )}
               >
-                <Link href="/notificaciones" aria-label="Ver notificaciones">
-                    <Bell className="h-5 w-5" />
-                    {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-card">
-                        {unreadCount > 9 ? "9+" : unreadCount}
-                      </span>
-                    )}
-                </Link>
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-card">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </Button>
 
               <Button

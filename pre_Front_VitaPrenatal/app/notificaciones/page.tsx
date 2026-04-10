@@ -1,24 +1,26 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Bell, CircleAlert, Info, TriangleAlert } from "lucide-react"
+import { Bell } from "lucide-react"
 import { MainNav } from "@/components/navigation/main-nav"
 import { cn } from "@/lib/utils"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 
 interface Notificacion {
   id: number
   mensaje: string
-  tipo: string
+  tipo: "CRITICA" | "ADVERTENCIA" | "INFORMATIVA"
   paciente_nombre: string
   fecha: string
   estado: string
   leida: boolean
 }
 
+const TIPO_ORDEN: Array<Notificacion["tipo"]> = ["CRITICA", "ADVERTENCIA", "INFORMATIVA"]
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api"
+const API_NOTIFICACIONES_ENDPOINT = `${API_BASE_URL}/notificaciones`
 
 function normalizeTipo(tipo: string): "CRITICA" | "ADVERTENCIA" | "INFORMATIVA" {
   const value = tipo
@@ -52,10 +54,6 @@ function isLeida(estado: unknown, leida: unknown): boolean {
   return estadoTexto === "LEIDA" || estadoTexto === "READ" || estadoTexto === "LEIDO"
 }
 
-function estadoLegible(notificacion: Notificacion): string {
-  return notificacion.leida ? "LEÍDA" : "NO LEÍDA"
-}
-
 function formatFecha(fecha: string): string {
   const parsed = new Date(fecha)
 
@@ -86,25 +84,155 @@ function parseNotificacion(raw: unknown, fallbackIndex: number): Notificacion {
   }
 }
 
-function getTipoStyles(tipo: Notificacion["tipo"]) {
+function getStylesByType(tipo: Notificacion["tipo"]) {
   if (tipo === "CRITICA") {
     return {
-      icon: TriangleAlert,
-      badgeClass: "border-red-200 bg-red-100 text-red-700",
+      sectionTitle: "Alertas críticas",
+      badgeClass: "border-red-600 bg-red-600 text-white",
+      borderClass: "border-l-red-500",
+      backgroundClass: "bg-red-50/60",
+      markerClass: "bg-red-500",
     }
   }
 
   if (tipo === "ADVERTENCIA") {
     return {
-      icon: CircleAlert,
-      badgeClass: "border-amber-200 bg-amber-100 text-amber-700",
+      sectionTitle: "Advertencias",
+      badgeClass: "border-amber-500 bg-amber-500 text-amber-950",
+      borderClass: "border-l-amber-500",
+      backgroundClass: "bg-amber-50/60",
+      markerClass: "bg-amber-500",
     }
   }
 
   return {
-    icon: Info,
-    badgeClass: "border-blue-200 bg-blue-100 text-blue-700",
+    sectionTitle: "Informativas",
+    badgeClass: "border-blue-600 bg-blue-600 text-white",
+    borderClass: "border-l-blue-500",
+    backgroundClass: "bg-blue-50/60",
+    markerClass: "bg-blue-500",
   }
+}
+
+function getFechaTimestamp(fecha: string): number {
+  const timestamp = new Date(fecha).getTime()
+
+  if (Number.isNaN(timestamp)) {
+    return 0
+  }
+
+  return timestamp
+}
+
+interface NotificationCardProps {
+  mensaje: string
+  paciente_nombre: string
+  tipo: Notificacion["tipo"]
+  fecha: string
+  leida: boolean
+  updating: boolean
+  onLeida: () => void
+}
+
+function NotificationCard({
+  mensaje,
+  paciente_nombre,
+  tipo,
+  fecha,
+  leida,
+  updating,
+  onLeida,
+}: NotificationCardProps) {
+  const tipoStyles = getStylesByType(tipo)
+
+  return (
+    <Card
+      className={cn(
+        "rounded-lg border border-border/70 border-l-8 shadow-sm",
+        leida
+          ? "border-l-border bg-muted/15 opacity-50"
+          : cn(tipoStyles.borderClass, tipoStyles.backgroundClass),
+      )}
+    >
+      <CardContent className="px-3 py-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <span
+              className={cn(
+                "h-8 w-1.5 shrink-0 rounded-full",
+                leida ? "bg-muted-foreground/40" : tipoStyles.markerClass,
+              )}
+            />
+
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-2">
+                <Badge
+                  className={cn(
+                    "shrink-0 rounded-md border px-2 py-0 text-[10px] font-semibold uppercase tracking-wide",
+                    leida ? "border-border bg-muted text-muted-foreground" : tipoStyles.badgeClass,
+                  )}
+                >
+                  {tipo}
+                </Badge>
+
+                <p
+                  className={cn(
+                    "truncate text-sm font-medium",
+                    leida ? "text-muted-foreground" : "text-foreground",
+                  )}
+                >
+                  {mensaje}
+                </p>
+              </div>
+
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {paciente_nombre} · {formatFecha(fecha)}
+              </p>
+            </div>
+          </div>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onLeida}
+            disabled={leida || updating}
+            className={cn(
+              "h-8 shrink-0 rounded-md px-3 text-xs",
+              leida && "cursor-not-allowed border-border bg-muted text-muted-foreground",
+            )}
+          >
+            {updating ? "Actualizando..." : "Marcar como leída"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+interface NotificacionCardContainerProps {
+  notificacion: Notificacion
+  updatingId: number | null
+  onLeida: (id: number) => Promise<void>
+}
+
+function NotificacionCardContainer({
+  notificacion,
+  updatingId,
+  onLeida,
+}: NotificacionCardContainerProps) {
+  return (
+    <NotificationCard
+      mensaje={notificacion.mensaje}
+      paciente_nombre={notificacion.paciente_nombre}
+      tipo={notificacion.tipo}
+      fecha={notificacion.fecha}
+      leida={notificacion.leida}
+      updating={updatingId === notificacion.id}
+      onLeida={() => {
+        void onLeida(notificacion.id)
+      }}
+    />
+  )
 }
 
 export default function NotificacionesPage() {
@@ -117,7 +245,7 @@ export default function NotificacionesPage() {
     setError("")
 
     try {
-      const response = await fetch(`${API_BASE_URL}/notificaciones/`)
+      const response = await fetch(API_NOTIFICACIONES_ENDPOINT)
 
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`)
@@ -154,7 +282,7 @@ export default function NotificacionesPage() {
     setError("")
 
     try {
-      const response = await fetch(`${API_BASE_URL}/notificaciones/${id}/leida`, {
+      const response = await fetch(`${API_NOTIFICACIONES_ENDPOINT}/${id}/leida`, {
         method: "PUT",
       })
 
@@ -162,7 +290,17 @@ export default function NotificacionesPage() {
         throw new Error(`Error ${response.status}: ${response.statusText}`)
       }
 
-      await cargarNotificaciones()
+      setNotificaciones((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                leida: true,
+                estado: "LEÍDA",
+              }
+            : item,
+        ),
+      )
     } catch (markError) {
       console.error("No se pudo marcar la notificación como leída", markError)
       setError("No fue posible marcar la notificación como leída.")
@@ -173,6 +311,22 @@ export default function NotificacionesPage() {
 
   const unreadCount = useMemo(
     () => notificaciones.filter((notificacion) => !notificacion.leida).length,
+    [notificaciones],
+  )
+
+  const groupedNotificaciones = useMemo(
+    () =>
+      TIPO_ORDEN.map((tipo) => {
+        const tipoStyles = getStylesByType(tipo)
+
+        return {
+          tipo,
+          sectionTitle: tipoStyles.sectionTitle,
+          items: notificaciones
+            .filter((notificacion) => notificacion.tipo === tipo)
+            .sort((a, b) => getFechaTimestamp(b.fecha) - getFechaTimestamp(a.fecha)),
+        }
+      }).filter((section) => section.items.length > 0),
     [notificaciones],
   )
 
@@ -220,58 +374,28 @@ export default function NotificacionesPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
-            {notificaciones.map((notificacion) => {
-              const tipoStyles = getTipoStyles(notificacion.tipo)
-              const TipoIcon = tipoStyles.icon
+          <div className="space-y-5">
+            {groupedNotificaciones.map((section) => (
+              <section key={section.tipo} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    {section.sectionTitle}
+                  </h3>
+                  <span className="text-xs text-muted-foreground">{section.items.length}</span>
+                </div>
 
-              return (
-                <Card key={notificacion.id} className="border-border/70 shadow-sm">
-                  <CardHeader className="pb-3">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        {!notificacion.leida && (
-                          <span className="inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
-                        )}
-                        <CardTitle className="text-base font-semibold text-foreground">
-                          {notificacion.mensaje}
-                        </CardTitle>
-                      </div>
-                      <Badge className={cn("gap-1 border", tipoStyles.badgeClass)}>
-                        <TipoIcon className="h-3.5 w-3.5" />
-                        {notificacion.tipo}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-3 text-sm sm:grid-cols-2">
-                      <p>
-                        <span className="font-medium text-foreground">Paciente: </span>
-                        <span className="text-muted-foreground">{notificacion.paciente_nombre}</span>
-                      </p>
-                      <p>
-                        <span className="font-medium text-foreground">Fecha: </span>
-                        <span className="text-muted-foreground">{formatFecha(notificacion.fecha)}</span>
-                      </p>
-                      <p>
-                        <span className="font-medium text-foreground">Estado: </span>
-                        <span className="text-muted-foreground">{estadoLegible(notificacion)}</span>
-                      </p>
-                    </div>
-
-                    <div className="mt-4 flex justify-end">
-                      <Button
-                        variant="outline"
-                        onClick={() => void marcarComoLeida(notificacion.id)}
-                        disabled={notificacion.leida || updatingId === notificacion.id}
-                      >
-                        {updatingId === notificacion.id ? "Actualizando..." : "Marcar como leída"}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
+                <div className="space-y-2">
+                  {section.items.map((notificacion) => (
+                    <NotificacionCardContainer
+                      key={notificacion.id}
+                      notificacion={notificacion}
+                      updatingId={updatingId}
+                      onLeida={marcarComoLeida}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </main>
