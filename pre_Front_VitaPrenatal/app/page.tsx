@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react"
 import { usePatients, RiskLevel as ContextRiskLevel, Consultation } from "@/lib/patient-context"
+import { useConfiguration } from "@/lib/configuration-context"
 import { consultaService } from "@/servicios/consultaService"
 import { PrediccionResponse } from "@/interfaz/consulta"
 import { MainNav } from "@/components/navigation/main-nav"
+import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { PatientInfoCard } from "@/components/dashboard/patient-info-card"
 import { ObstetricHistoryCard } from "@/components/dashboard/obstetric-history-card"
 import { RiskIndicatorCard } from "@/components/dashboard/risk-indicator-card"
@@ -59,6 +61,7 @@ export default function VitaPrenatalMonitoreoClinico() {
     addConsultation,
     updateConsultation
   } = usePatients()
+  const { fetchNotificaciones } = useConfiguration()
   
   const [systolic, setSystolic] = useState(120)
   const [diastolic, setDiastolic] = useState(80)
@@ -97,8 +100,19 @@ export default function VitaPrenatalMonitoreoClinico() {
   }
 
   const handleRefresh = async () => {
-    await fetchPredictionForConsultation(consultation?.id)
-    setLastUpdated(new Date().toLocaleString())
+    if (!consultation?.id) return
+
+    try {
+      await fetch(`http://localhost:8000/api/actualizar/${consultation.id}`, {
+        method: "POST",
+      })
+
+      await fetchPredictionForConsultation(consultation.id)
+      await fetchNotificaciones()
+      setLastUpdated(new Date().toLocaleString())
+    } catch (error) {
+      console.error("Error:", error)
+    }
   }
 
   // Update values when selected consultation changes
@@ -146,9 +160,10 @@ export default function VitaPrenatalMonitoreoClinico() {
     }
   }
 
-  const handleNewConsultation = (consultationData: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory">) => {
+  const handleNewConsultation = async (consultationData: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory">) => {
     if (selectedPatient) {
-      addConsultation(selectedPatient.id, consultationData)
+      await addConsultation(selectedPatient.id, consultationData)
+      await fetchNotificaciones()
     }
   }
 
@@ -211,9 +226,8 @@ export default function VitaPrenatalMonitoreoClinico() {
     return (
       <div className="min-h-screen bg-background">
         <MainNav
-          showRefresh={selectedPatient !== null}
-          onRefresh={handleRefresh}
-          lastUpdated={lastUpdated}
+          hideUtilityActions
+          subHeader={<DashboardHeader lastUpdated={lastUpdated} onRefresh={handleRefresh} />}
         />
         <main className="container mx-auto px-4 py-6">
           <Card className="border-border/50 max-w-lg mx-auto mt-12">
@@ -261,9 +275,8 @@ export default function VitaPrenatalMonitoreoClinico() {
   return (
     <div className="min-h-screen bg-background">
       <MainNav
-        showRefresh={selectedPatient !== null}
-        onRefresh={handleRefresh}
-        lastUpdated={lastUpdated}
+        hideUtilityActions
+        subHeader={<DashboardHeader lastUpdated={lastUpdated} onRefresh={handleRefresh} />}
       />
       
       <main className="container mx-auto px-4 py-6 overflow-x-hidden">

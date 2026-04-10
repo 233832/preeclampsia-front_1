@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import type { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -11,13 +11,10 @@ import {
   Settings,
   RefreshCw,
   Calendar,
-  AlertTriangle,
-  AlertCircle,
-  Info,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/components/ui/dropdown-menu"
-import { Switch } from "@/components/ui/switch"
+import { useConfiguration } from "@/lib/configuration-context"
+import { isNotificationEnabled } from "@/lib/notifications-data"
 import { cn } from "@/lib/utils"
 
 const navItems = [
@@ -37,56 +34,26 @@ interface MainNavProps {
   showRefresh?: boolean
   onRefresh?: () => void
   lastUpdated?: string
+  hideUtilityActions?: boolean
+  subHeader?: ReactNode
 }
 
-const notificationsSample = [
-  {
-    id: "1",
-    variant: "critical",
-    title: "Nivel de riesgo alto detectado",
-    patient: "María López",
-    date: "Hoy, 08:34",
-  },
-  {
-    id: "2",
-    variant: "warning",
-    title: "Presión arterial fuera de rango",
-    patient: "Ana Pérez",
-    date: "Hoy, 07:10",
-  },
-  {
-    id: "3",
-    variant: "info",
-    title: "Consulta registrada correctamente",
-    patient: "Laura Díaz",
-    date: "Ayer, 17:45",
-  },
-]
-
-const notificationStyles: Record<string, string> = {
-  critical: "bg-red-100 text-red-700",
-  warning: "bg-amber-100 text-amber-700",
-  info: "bg-primary/10 text-primary",
-}
-
-const notificationIcons: Record<string, typeof AlertTriangle> = {
-  critical: AlertTriangle,
-  warning: AlertCircle,
-  info: Info,
-}
-
-export function MainNav({ showRefresh = false, onRefresh, lastUpdated }: MainNavProps) {
+export function MainNav({
+  showRefresh = false,
+  onRefresh,
+  lastUpdated,
+  hideUtilityActions = false,
+  subHeader,
+}: MainNavProps) {
   const pathname = usePathname()
-  const [readAll, setReadAll] = useState(false)
-  const [emailAlerts, setEmailAlerts] = useState(true)
-  const [smsAlerts, setSmsAlerts] = useState(false)
-  const [appAlerts, setAppAlerts] = useState(true)
+  const { configuraciones, notifications } = useConfiguration()
 
-  const unreadCount = readAll ? 0 : notificationsSample.length
+  const unreadCount = notifications.filter(
+    (item) => !item.leida && isNotificationEnabled(item, configuraciones),
+  ).length
 
-  const markAllRead = () => {
-    setReadAll(true)
-  }
+  const notificationsActive = pathname === "/notificaciones"
+  const settingsActive = pathname === "/configuraciones"
 
   return (
     <header className="border-b border-border/50 bg-card/80 backdrop-blur-sm sticky top-0 z-50">
@@ -130,146 +97,61 @@ export function MainNav({ showRefresh = false, onRefresh, lastUpdated }: MainNav
           </nav>
 
           {/* Actions */}
-          <div className="flex items-center gap-1 sm:gap-2">
-            {showRefresh && onRefresh && (
-              <>
-                {lastUpdated && (
-                  <div className="hidden lg:flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4 flex-shrink-0" />
-                    <span className="whitespace-nowrap">Actualizado: {lastUpdated}</span>
-                  </div>
-                )}
-                <Button variant="outline" size="sm" onClick={onRefresh} className="gap-2">
-                  <RefreshCw className="h-4 w-4" />
-                  <span className="hidden sm:inline">Actualizar</span>
-                </Button>
-              </>
-            )}
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
-                  <Bell className="h-5 w-5" />
-                  {unreadCount > 0 && (
-                    <span className="absolute top-0 right-0 inline-flex h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card" />
+          {!hideUtilityActions && (
+            <div className="flex items-center gap-1 sm:gap-2">
+              {showRefresh && onRefresh && (
+                <>
+                  {lastUpdated && (
+                    <div className="hidden lg:flex items-center gap-2 text-sm text-muted-foreground">
+                      <Calendar className="h-4 w-4 flex-shrink-0" />
+                      <span className="whitespace-nowrap">Actualizado: {lastUpdated}</span>
+                    </div>
                   )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-[26rem] p-3" align="end">
-                <div className="flex items-start justify-between gap-4 px-2 pb-3">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Notificaciones</p>
-                    <p className="text-xs text-muted-foreground">Alertas del monitoreo clínico</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={markAllRead}
-                    className="whitespace-nowrap"
-                  >
-                    Marcar todas como leídas
+                  <Button variant="outline" size="sm" onClick={onRefresh} className="gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    <span className="hidden sm:inline">Actualizar</span>
                   </Button>
-                </div>
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                  {notificationsSample.map((item) => {
-                    const Icon = notificationIcons[item.variant]
-                    return (
-                      <div
-                        key={item.id}
-                        className="rounded-2xl border border-border/70 bg-card/80 p-3 shadow-sm"
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className={`flex h-9 w-9 items-center justify-center rounded-2xl border border-border/70 ${notificationStyles[item.variant]}`}>
-                            <Icon className="h-4 w-4" />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-foreground">{item.title}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {item.patient} · {item.date}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </>
+              )}
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Settings className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-[28rem] p-4" align="end">
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm">
-                    <p className="text-sm font-semibold text-foreground">Umbrales</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Ajusta los límites clínicos que usarán las alertas y el monitoreo.
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">Notificaciones</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Activa o desactiva los alertas clínicos.
-                        </p>
-                      </div>
-                      <Switch checked={emailAlerts} onCheckedChange={setEmailAlerts} />
-                    </div>
-                    <div className="mt-4 space-y-3">
-                      <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/80 p-3">
-                        <div className="flex items-start gap-3">
-                          <span className="inline-flex h-2.5 w-2.5 rounded-full bg-red-500 mt-1" />
-                          <div>
-                            <p className="text-sm font-medium text-foreground">Alertas críticas</p>
-                            <p className="text-xs text-muted-foreground">Avisos de riesgo alto inmediato.</p>
-                          </div>
-                        </div>
-                        <Switch checked={smsAlerts} onCheckedChange={setSmsAlerts} />
-                      </div>
-                      <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/80 p-3">
-                        <div className="flex items-start gap-3">
-                          <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500 mt-1" />
-                          <div>
-                            <p className="text-sm font-medium text-foreground">Advertencias</p>
-                            <p className="text-xs text-muted-foreground">Señales de observación clínica.</p>
-                          </div>
-                        </div>
-                        <Switch checked={appAlerts} onCheckedChange={setAppAlerts} />
-                      </div>
-                      <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/80 p-3">
-                        <div className="flex items-start gap-3">
-                          <span className="inline-flex h-2.5 w-2.5 rounded-full bg-primary mt-1" />
-                          <div>
-                            <p className="text-sm font-medium text-foreground">Informativas</p>
-                            <p className="text-xs text-muted-foreground">Actualizaciones generales del sistema.</p>
-                          </div>
-                        </div>
-                        <Switch checked={readAll} onCheckedChange={setReadAll} />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm">
-                    <p className="text-sm font-semibold text-foreground">Frecuencia</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Recibe alertas según tus horarios clínicos establecidos.
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm">
-                    <p className="text-sm font-semibold text-foreground">Información</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Todas las configuraciones son parte del monitoreo clínico del paciente.
-                    </p>
-                  </div>
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+              <Button
+                asChild
+                variant={notificationsActive ? "secondary" : "ghost"}
+                size="icon"
+                className={cn(
+                  "relative",
+                  notificationsActive && "bg-primary/10 text-primary hover:bg-primary/15",
+                )}
+              >
+                <Link href="/notificaciones" aria-label="Ver notificaciones">
+                    <Bell className="h-5 w-5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-card">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                </Link>
+              </Button>
+
+              <Button
+                asChild
+                variant={settingsActive ? "secondary" : "ghost"}
+                size="icon"
+                className={cn(
+                  settingsActive && "bg-primary/10 text-primary hover:bg-primary/15",
+                )}
+              >
+                <Link href="/configuraciones" aria-label="Abrir configuraciones">
+                    <Settings className="h-5 w-5" />
+                </Link>
+              </Button>
+            </div>
+          )}
         </div>
+
+        {subHeader && (
+          <div className="mt-3 border-t border-border/40 pt-3">{subHeader}</div>
+        )}
       </div>
     </header>
   )
