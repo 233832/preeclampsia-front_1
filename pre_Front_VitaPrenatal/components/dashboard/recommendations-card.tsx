@@ -19,10 +19,10 @@ import { cn } from "@/lib/utils"
 import { PrediccionResponse } from "@/interfaz/consulta"
 import { consultaService } from "@/servicios/consultaService"
 
-type RiskLevel = "low" | "moderate" | "high" | "very-high"
+type BackendRisk = "NINGUNO" | "BAJO" | "MEDIO" | "ALTO"
 
 interface RecommendationsCardProps {
-  riskLevel: RiskLevel
+  riesgo: string
   consultationId?: string
   onPredictionChange?: (prediction: PrediccionResponse | null) => void
   mlData?: {
@@ -34,7 +34,7 @@ interface RecommendationsCardProps {
 }
 
 const recommendationsByRisk = {
-  low: [
+  NINGUNO: [
     {
       icon: Activity,
       title: "Monitoreo de presion arterial",
@@ -51,7 +51,7 @@ const recommendationsByRisk = {
       description: "Mantener alimentacion balanceada y actividad fisica moderada.",
     },
   ],
-  moderate: [
+  BAJO: [
     {
       icon: HeartPulse,
       title: "Monitoreo intensificado",
@@ -73,7 +73,7 @@ const recommendationsByRisk = {
       description: "Reportar cualquier sintoma inusual: dolor de cabeza, vision borrosa.",
     },
   ],
-  high: [
+  MEDIO: [
     {
       icon: HeartPulse,
       title: "Monitoreo diario de presion",
@@ -95,7 +95,7 @@ const recommendationsByRisk = {
       description: "Programar evaluaciones semanales con el equipo medico.",
     },
   ],
-  "very-high": [
+  ALTO: [
     {
       icon: HeartPulse,
       title: "Monitoreo continuo",
@@ -120,22 +120,22 @@ const recommendationsByRisk = {
 }
 
 const riskStyles = {
-  low: {
+  NINGUNO: {
+    badge: "bg-muted/30 text-muted-foreground border-muted",
+    iconBg: "bg-muted/20",
+    iconColor: "text-muted-foreground",
+  },
+  BAJO: {
     badge: "bg-risk-low/10 text-risk-low border-risk-low",
     iconBg: "bg-risk-low/10",
     iconColor: "text-risk-low",
   },
-  moderate: {
+  MEDIO: {
     badge: "bg-risk-moderate/10 text-risk-moderate border-risk-moderate",
     iconBg: "bg-risk-moderate/10",
     iconColor: "text-risk-moderate",
   },
-  high: {
-    badge: "bg-risk-high/10 text-risk-high border-risk-high",
-    iconBg: "bg-risk-high/10",
-    iconColor: "text-risk-high",
-  },
-  "very-high": {
+  ALTO: {
     badge: "bg-risk-high/15 text-risk-high border-risk-high",
     iconBg: "bg-risk-high/15",
     iconColor: "text-risk-high",
@@ -143,27 +143,32 @@ const riskStyles = {
 }
 
 const riskLabels = {
-  low: "Bajo",
-  moderate: "Medio",
-  high: "Alto",
-  "very-high": "Muy Alto",
+  NINGUNO: "Ninguno",
+  BAJO: "Bajo",
+  MEDIO: "Medio",
+  ALTO: "Alto",
 }
 
-const getRiskLevelFromML = (riesgo: string): RiskLevel => {
-  switch (riesgo.toLowerCase()) {
-    case 'bajo': return 'low';
-    case 'medio': return 'moderate';
-    case 'alto': return 'high';
-    default: return 'low';
+const normalizeBackendRisk = (riesgo: string): BackendRisk => {
+  switch ((riesgo || "NINGUNO").toUpperCase()) {
+    case "BAJO":
+      return "BAJO"
+    case "MEDIO":
+      return "MEDIO"
+    case "ALTO":
+      return "ALTO"
+    case "NINGUNO":
+    default:
+      return "NINGUNO"
   }
-};
+}
 
-export function RecommendationsCard({ riskLevel, consultationId, onPredictionChange, mlData }: RecommendationsCardProps) {
+export function RecommendationsCard({ riesgo, consultationId, onPredictionChange, mlData }: RecommendationsCardProps) {
   const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // Use ML data if available, otherwise use the provided riskLevel
-  const currentRiskLevel = mlData ? getRiskLevelFromML(mlData.riesgo) : riskLevel
+  // Use backend riesgo from IA response when available; otherwise use backend riesgo from consulta.
+  const currentRisk = normalizeBackendRisk(mlData ? mlData.riesgo : riesgo)
 
   useEffect(() => {
     setPrediction(null)
@@ -185,8 +190,8 @@ export function RecommendationsCard({ riskLevel, consultationId, onPredictionCha
     }
   }
 
-  const recommendations = recommendationsByRisk[currentRiskLevel]
-  const styles = riskStyles[currentRiskLevel]
+  const recommendations = recommendationsByRisk[currentRisk]
+  const styles = riskStyles[currentRisk]
 
   return (
     <Card className="border-border/50 shadow-sm">
@@ -201,7 +206,7 @@ export function RecommendationsCard({ riskLevel, consultationId, onPredictionCha
             </Badge>
           </CardTitle>
           <Badge variant="outline" className={cn("text-xs flex-shrink-0", styles.badge)}>
-            {riskLabels[currentRiskLevel]}
+            {riskLabels[currentRisk]}
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground mt-1">

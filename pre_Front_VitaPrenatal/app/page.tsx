@@ -21,21 +21,34 @@ import { Button } from "@/components/ui/button"
 import { Users, ArrowRight } from "lucide-react"
 import Link from "next/link"
 
-// Map context risk level to dashboard risk level
-type DashboardRiskLevel = "low" | "moderate" | "high" | "very-high"
+type BackendRisk = "NINGUNO" | "BAJO" | "MEDIO" | "ALTO"
 
-function mapRiskLevel(level: ContextRiskLevel): DashboardRiskLevel {
+function mapContextRiskToBackendRisk(level: ContextRiskLevel): BackendRisk {
   switch (level) {
     case "none":
-      return "low"
+      return "NINGUNO"
     case "low":
-      return "low"
+      return "BAJO"
     case "moderate":
-      return "moderate"
+      return "MEDIO"
     case "high":
-      return "high"
+      return "ALTO"
     default:
+      return "NINGUNO"
+  }
+}
+
+function mapApiRiskToContextRisk(riesgo: string | undefined): ContextRiskLevel {
+  switch ((riesgo || "NINGUNO").toUpperCase()) {
+    case "BAJO":
       return "low"
+    case "MEDIO":
+      return "moderate"
+    case "ALTO":
+      return "high"
+    case "NINGUNO":
+    default:
+      return "none"
   }
 }
 
@@ -70,7 +83,35 @@ export default function VitaPrenatalMonitoreoClinico() {
   const [showConsultationForm, setShowConsultationForm] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
+  const [predictionLoading, setPredictionLoading] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(() => new Date().toLocaleString())
+
+  const fetchPredictionForConsultation = async (consultationId?: string) => {
+    if (!consultationId) {
+      setPrediction(null)
+      setPredictionLoading(false)
+      return
+    }
+
+    const idNumber = Number.parseInt(consultationId, 10)
+    if (Number.isNaN(idNumber)) {
+      setPrediction(null)
+      setPredictionLoading(false)
+      return
+    }
+
+    setPredictionLoading(true)
+
+    try {
+      const predictionFromApi = await consultaService.obtenerPrediccion(idNumber)
+      setPrediction(predictionFromApi)
+    } catch (error) {
+      console.error("Error fetching prediction by consultation id:", error)
+      setPrediction(null)
+    } finally {
+      setPredictionLoading(false)
+    }
+  }
 
   const fetchConsultationById = async (consultationId?: string) => {
     if (!consultationId || !selectedPatient) {
@@ -96,6 +137,7 @@ export default function VitaPrenatalMonitoreoClinico() {
         bmi: consultationFromApi.imc,
         systolic: consultationFromApi.presion_sistolica,
         diastolic: consultationFromApi.presion_diastolica,
+        riskLevel: mapApiRiskToContextRisk(consultationFromApi.riesgo),
       })
     } catch (error) {
       console.error("Error fetching consultation by id:", error)
@@ -111,7 +153,7 @@ export default function VitaPrenatalMonitoreoClinico() {
       })
 
       await fetchConsultationById(consultation.id)
-      setPrediction(null)
+      await fetchPredictionForConsultation(consultation.id)
       await fetchNotificaciones()
       setLastUpdated(new Date().toLocaleString())
     } catch (error) {
@@ -224,7 +266,9 @@ export default function VitaPrenatalMonitoreoClinico() {
   // Refresh consultation details when consultation changes.
   useEffect(() => {
     setPrediction(null)
+    setPredictionLoading(true)
     void fetchConsultationById(consultation?.id)
+    void fetchPredictionForConsultation(consultation?.id)
   }, [consultation?.id, selectedPatient?.id])
   
   if (!consultation) {
@@ -275,7 +319,18 @@ export default function VitaPrenatalMonitoreoClinico() {
     familyHypertensionHistory: consultation.familyHypertensionHistory,
   }
 
-  const riskLevel = mapRiskLevel(consultation.riskLevel)
+  const backendRisk = mapContextRiskToBackendRisk(consultation.riskLevel)
+  const currentRiskData = prediction
+    ? {
+        riesgo: prediction.riesgo,
+        riesgo_ml: prediction.riesgo_ml,
+        confianza_ml: prediction.confianza_ml,
+        score_total: prediction.score_total,
+      }
+    : {
+        riesgo: backendRisk,
+        riesgo_ml: backendRisk,
+      }
 
   return (
     <div className="min-h-screen bg-background">
@@ -300,19 +355,7 @@ export default function VitaPrenatalMonitoreoClinico() {
 
           {/* Center Column - Risk Indicator, BP Input, and Charts */}
           <div className="md:col-span-1 xl:col-span-5 space-y-6">
-            <RiskIndicatorCard 
-              data={prediction ? {
-                riesgo: prediction.riesgo,
-                riesgo_ml: prediction.riesgo_ml,
-                confianza_ml: prediction.confianza_ml,
-                score_total: prediction.score_total
-              } : {
-                riesgo: "BAJO",
-                riesgo_ml: "BAJO",
-                confianza_ml: 0,
-                score_total: 0
-              }}
-            />
+            <RiskIndicatorCard data={currentRiskData} isLoading={predictionLoading} />
             
             <BloodPressureInputCard
               systolic={systolic}
@@ -349,7 +392,7 @@ export default function VitaPrenatalMonitoreoClinico() {
           {/* Right Column - Recommendations and Notes */}
           <div className="md:col-span-2 xl:col-span-4 space-y-6">
             <RecommendationsCard 
-              riskLevel={riskLevel} 
+              riesgo={currentRiskData.riesgo}
               consultationId={consultation?.id}
               onPredictionChange={setPrediction}
               mlData={prediction ? {
