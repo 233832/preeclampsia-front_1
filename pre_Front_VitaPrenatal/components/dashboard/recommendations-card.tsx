@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,7 @@ type RiskLevel = "low" | "moderate" | "high" | "very-high"
 interface RecommendationsCardProps {
   riskLevel: RiskLevel
   consultationId?: string
+  onPredictionChange?: (prediction: PrediccionResponse | null) => void
   mlData?: {
     riesgo: string;
     riesgo_ml: string;
@@ -157,12 +158,17 @@ const getRiskLevelFromML = (riesgo: string): RiskLevel => {
   }
 };
 
-export function RecommendationsCard({ riskLevel, consultationId, mlData }: RecommendationsCardProps) {
+export function RecommendationsCard({ riskLevel, consultationId, onPredictionChange, mlData }: RecommendationsCardProps) {
   const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
   const [loading, setLoading] = useState(false)
 
   // Use ML data if available, otherwise use the provided riskLevel
   const currentRiskLevel = mlData ? getRiskLevelFromML(mlData.riesgo) : riskLevel
+
+  useEffect(() => {
+    setPrediction(null)
+    onPredictionChange?.(null)
+  }, [consultationId, onPredictionChange])
 
   const handleGenerateAI = async () => {
     if (!consultationId) return
@@ -171,6 +177,7 @@ export function RecommendationsCard({ riskLevel, consultationId, mlData }: Recom
     try {
       const pred = await consultaService.obtenerPrediccion(parseInt(consultationId))
       setPrediction(pred)
+      onPredictionChange?.(pred)
     } catch (error) {
       console.error('Error fetching prediction:', error)
     } finally {
@@ -210,7 +217,10 @@ export function RecommendationsCard({ riskLevel, consultationId, mlData }: Recom
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setPrediction(null)}
+              onClick={() => {
+                setPrediction(null)
+                onPredictionChange?.(null)
+              }}
               className="w-full"
             >
               <Bot className="h-4 w-4 mr-2" />

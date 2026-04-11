@@ -72,30 +72,33 @@ export default function VitaPrenatalMonitoreoClinico() {
   const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
   const [lastUpdated, setLastUpdated] = useState(() => new Date().toLocaleString())
 
-  const fetchPredictionForConsultation = async (consultationId?: string) => {
-    if (!consultationId) {
-      console.warn("⚠️ fetchPredictionForConsultation: consultationId no definido")
-      setPrediction(null)
+  const fetchConsultationById = async (consultationId?: string) => {
+    if (!consultationId || !selectedPatient) {
       return
     }
 
-    const idNumber = parseInt(consultationId, 10)
-    console.log("🔎 fetchPrediction -> consultation.id:", consultationId, "parsed:", idNumber)
+    const idNumber = Number.parseInt(consultationId, 10)
+    if (Number.isNaN(idNumber)) {
+      console.warn("⚠️ fetchConsultationById: consultationId inválido", consultationId)
+      return
+    }
 
     try {
-      const pred = await consultaService.obtenerPrediccion(idNumber)
-      console.log("🎯 PREDICCIÓN OBTENIDA raw:", pred)
+      const consultationFromApi = await consultaService.obtenerPorId(idNumber)
+      const [date, rawTime = "00:00"] = consultationFromApi.fecha_hora_consulta.split("T")
 
-      if (!pred) {
-        console.warn("⚠️ fetchPredictionForConsultation: la API devolvió null o vacío para la predicción", { idNumber })
-        setPrediction(null)
-        return
-      }
-
-      setPrediction(pred)
+      updateConsultation(selectedPatient.id, consultationId, {
+        date,
+        time: rawTime.slice(0, 5),
+        gestationalWeek: consultationFromApi.edad_gestacional,
+        weight: consultationFromApi.peso,
+        height: consultationFromApi.altura,
+        bmi: consultationFromApi.imc,
+        systolic: consultationFromApi.presion_sistolica,
+        diastolic: consultationFromApi.presion_diastolica,
+      })
     } catch (error) {
-      console.error("Error fetching prediction:", error)
-      setPrediction(null)
+      console.error("Error fetching consultation by id:", error)
     }
   }
 
@@ -107,7 +110,8 @@ export default function VitaPrenatalMonitoreoClinico() {
         method: "POST",
       })
 
-      await fetchPredictionForConsultation(consultation.id)
+      await fetchConsultationById(consultation.id)
+      setPrediction(null)
       await fetchNotificaciones()
       setLastUpdated(new Date().toLocaleString())
     } catch (error) {
@@ -217,10 +221,11 @@ export default function VitaPrenatalMonitoreoClinico() {
   // Get consultation data (use selected or latest)
   const consultation = selectedConsultation || selectedPatient.consultations[0]
   
-  // Fetch prediction when consultation changes
+  // Refresh consultation details when consultation changes.
   useEffect(() => {
-    fetchPredictionForConsultation(consultation?.id)
-  }, [consultation?.id])
+    setPrediction(null)
+    void fetchConsultationById(consultation?.id)
+  }, [consultation?.id, selectedPatient?.id])
   
   if (!consultation) {
     return (
@@ -346,6 +351,7 @@ export default function VitaPrenatalMonitoreoClinico() {
             <RecommendationsCard 
               riskLevel={riskLevel} 
               consultationId={consultation?.id}
+              onPredictionChange={setPrediction}
               mlData={prediction ? {
                 riesgo: prediction.riesgo,
                 riesgo_ml: prediction.riesgo_ml,
