@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { ClipboardList, Calendar, Clock, Activity, Plus, Check } from "lucide-react"
+import { ClipboardList, Calendar, Clock, Activity, Plus, Check, FileDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface ConsultationHistoryCardProps {
@@ -13,6 +13,8 @@ interface ConsultationHistoryCardProps {
   selectedConsultationId: string | null
   onSelectConsultation: (consultation: Consultation) => void
   onNewConsultation: () => void
+  onDownloadSelectedReport: () => void
+  downloadingReport: boolean
 }
 
 const riskConfig: Record<RiskLevel, { label: string; shortLabel: string; bgColor: string; textColor: string }> = {
@@ -56,6 +58,8 @@ export function ConsultationHistoryCard({
   selectedConsultationId,
   onSelectConsultation,
   onNewConsultation,
+  onDownloadSelectedReport,
+  downloadingReport,
 }: ConsultationHistoryCardProps) {
   // Sort consultations by date (most recent first)
   const sortedConsultations = [...consultations].sort((a, b) => {
@@ -75,10 +79,23 @@ export function ConsultationHistoryCard({
               {consultations.length}
             </Badge>
           </CardTitle>
-          <Button size="sm" onClick={onNewConsultation} className="h-8 gap-1">
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Nueva</span>
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onDownloadSelectedReport}
+              disabled={downloadingReport}
+              className="h-8 gap-1"
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{downloadingReport ? "Descargando..." : "PDF"}</span>
+            </Button>
+
+            <Button size="sm" onClick={onNewConsultation} className="h-8 gap-1">
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Nueva</span>
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="pt-2">

@@ -18,6 +18,8 @@ import { ConsultationHistoryCard } from "@/components/dashboard/consultation-his
 import { ConsultationForm } from "@/components/patients/consultation-form"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Toaster } from "@/components/ui/toaster"
+import { toast } from "@/hooks/use-toast"
 import { Users, ArrowRight } from "lucide-react"
 import Link from "next/link"
 
@@ -84,34 +86,8 @@ export default function VitaPrenatalMonitoreoClinico() {
   const [mounted, setMounted] = useState(false)
   const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
   const [predictionLoading, setPredictionLoading] = useState(false)
+  const [downloadingReport, setDownloadingReport] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(() => new Date().toLocaleString())
-
-  const fetchPredictionForConsultation = async (consultationId?: string) => {
-    if (!consultationId) {
-      setPrediction(null)
-      setPredictionLoading(false)
-      return
-    }
-
-    const idNumber = Number.parseInt(consultationId, 10)
-    if (Number.isNaN(idNumber)) {
-      setPrediction(null)
-      setPredictionLoading(false)
-      return
-    }
-
-    setPredictionLoading(true)
-
-    try {
-      const predictionFromApi = await consultaService.obtenerPrediccion(idNumber)
-      setPrediction(predictionFromApi)
-    } catch (error) {
-      console.error("Error fetching prediction by consultation id:", error)
-      setPrediction(null)
-    } finally {
-      setPredictionLoading(false)
-    }
-  }
 
   const fetchConsultationById = async (consultationId?: string) => {
     if (!consultationId || !selectedPatient) {
@@ -153,8 +129,9 @@ export default function VitaPrenatalMonitoreoClinico() {
       })
 
       await fetchConsultationById(consultation.id)
-      await fetchPredictionForConsultation(consultation.id)
       await fetchNotificaciones()
+      setPrediction(null)
+      setPredictionLoading(false)
       setLastUpdated(new Date().toLocaleString())
     } catch (error) {
       console.error("Error:", error)
@@ -217,6 +194,49 @@ export default function VitaPrenatalMonitoreoClinico() {
     selectConsultation(consultation)
   }
 
+  const handleDownloadSelectedReport = async () => {
+    if (!selectedConsultation?.id) {
+      toast({
+        variant: "destructive",
+        title: "No hay consulta seleccionada",
+        description: "Seleccione una consulta en el historial para descargar su reporte PDF.",
+      })
+      return
+    }
+
+    const consultaId = Number.parseInt(selectedConsultation.id, 10)
+
+    if (Number.isNaN(consultaId)) {
+      toast({
+        variant: "destructive",
+        title: "Consulta inválida",
+        description: "No se pudo identificar la consulta seleccionada.",
+      })
+      return
+    }
+
+    setDownloadingReport(true)
+
+    try {
+      await consultaService.descargarReportePdf(consultaId)
+      toast({
+        title: "Reporte descargado",
+        description: `Se descargó reporte_${consultaId}.pdf correctamente.`,
+      })
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "No fue posible descargar el reporte PDF."
+
+      toast({
+        variant: "destructive",
+        title: "Error al descargar reporte",
+        description: errorMessage,
+      })
+    } finally {
+      setDownloadingReport(false)
+    }
+  }
+
   // Show empty state if no patient selected
   if (!selectedPatient) {
     return (
@@ -256,6 +276,8 @@ export default function VitaPrenatalMonitoreoClinico() {
             </div>
           </div>
         </footer>
+
+        <Toaster />
       </div>
     )
   }
@@ -266,9 +288,8 @@ export default function VitaPrenatalMonitoreoClinico() {
   // Refresh consultation details when consultation changes.
   useEffect(() => {
     setPrediction(null)
-    setPredictionLoading(true)
+    setPredictionLoading(false)
     void fetchConsultationById(consultation?.id)
-    void fetchPredictionForConsultation(consultation?.id)
   }, [consultation?.id, selectedPatient?.id])
   
   if (!consultation) {
@@ -300,6 +321,8 @@ export default function VitaPrenatalMonitoreoClinico() {
           patient={selectedPatient}
           onSave={handleNewConsultation}
         />
+
+        <Toaster />
       </div>
     )
   }
@@ -350,6 +373,8 @@ export default function VitaPrenatalMonitoreoClinico() {
               selectedConsultationId={selectedConsultation?.id || null}
               onSelectConsultation={handleSelectConsultation}
               onNewConsultation={() => setShowConsultationForm(true)}
+              onDownloadSelectedReport={handleDownloadSelectedReport}
+              downloadingReport={downloadingReport}
             />
           </div>
 
@@ -429,6 +454,8 @@ export default function VitaPrenatalMonitoreoClinico() {
         patient={selectedPatient}
         onSave={handleNewConsultation}
       />
+
+      <Toaster />
     </div>
   )
 }

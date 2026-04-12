@@ -47,5 +47,49 @@ export const consultaService = {
         const data = await response.json();
         console.log("✅ consultaService.obtenerPrediccion respuesta JSON:", data);
         return data;
+    },
+
+    // Descargar reporte PDF de una consulta
+    descargarReportePdf: async (idConsulta: number): Promise<void> => {
+        if (!Number.isFinite(idConsulta) || idConsulta <= 0) {
+            throw new Error("ID de consulta inválido para descargar reporte.");
+        }
+
+        const response = await fetchApi(`/api/consultas/${idConsulta}/pdf`, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/pdf',
+            },
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(
+                `Error al descargar reporte PDF: ${response.status} ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`,
+            );
+        }
+
+        const pdfBlob = await response.blob();
+
+        if (pdfBlob.size === 0) {
+            throw new Error('El reporte PDF llegó vacío.');
+        }
+
+        if (typeof window === 'undefined') {
+            throw new Error('La descarga de PDF solo está disponible en el navegador.');
+        }
+
+        const objectUrl = window.URL.createObjectURL(pdfBlob);
+
+        try {
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = `reporte_${idConsulta}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } finally {
+            window.URL.revokeObjectURL(objectUrl);
+        }
     }
 };

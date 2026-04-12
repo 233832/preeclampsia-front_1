@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Image from "next/image"
 import { BellRing, CalendarClock, HeartPulse, Save, Settings2 } from "lucide-react"
 import { MainNav } from "@/components/navigation/main-nav"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -71,6 +72,8 @@ const DEFAULT_CONFIG_VALUES = {
   advertencias: true,
   informativas: true,
 } as const
+
+const SYSTEM_LOGO_SRC = "/Gemini_Generated_Image_.png"
 
 interface ConfiguracionFormState {
   umbral_sistolico: string
@@ -430,15 +433,29 @@ export default function ConfiguracionesPage() {
       <MainNav />
 
       <main className="container mx-auto px-4 py-8">
-        <div className="mx-auto max-w-3xl space-y-5">
-          <div className="space-y-2">
-            <h2 className="flex items-center gap-2 text-2xl font-bold text-foreground">
-              <Settings2 className="h-6 w-6 text-primary" />
-              Configuraciones Clínicas
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Ajuste umbrales, notificaciones, seguimiento y datos del sistema clínico.
-            </p>
+        <div className="mx-auto max-w-4xl space-y-6">
+          <div className="rounded-2xl border border-border/70 bg-gradient-to-b from-rose-50/55 via-background to-violet-50/45 px-6 py-8 shadow-sm">
+            <div className="flex flex-col items-center text-center">
+              <div className="rounded-3xl border border-rose-100/80 bg-white/90 p-2.5 shadow-[0_14px_28px_-22px_rgba(157,23,77,0.8)]">
+                <Image
+                  src={SYSTEM_LOGO_SRC}
+                  alt="Logo del sistema VitaPrenatal"
+                  width={220}
+                  height={220}
+                  className="h-32 w-32 rounded-2xl object-cover object-center sm:h-36 sm:w-36"
+                  priority
+                />
+              </div>
+
+              <h1 className="mt-5 text-2xl font-semibold tracking-tight text-primary sm:text-3xl">
+                Configuraciones del Sistema
+              </h1>
+
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                Administra parámetros clínicos y operativos con una estructura clara, ordenada y
+                enfocada en la legibilidad.
+              </p>
+            </div>
           </div>
 
           {loading ? (
@@ -448,9 +465,9 @@ export default function ConfiguracionesPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-5">
-              <div className="grid gap-4 xl:grid-cols-2">
-                <Card className="rounded-xl border-border/70 shadow-sm">
+            <div className="space-y-6">
+              <div className="grid gap-5 lg:grid-cols-2">
+                <Card className="h-full rounded-xl border-border/70 shadow-sm">
                   <CardHeader className="space-y-1 pb-4">
                     <CardTitle className="flex items-center gap-2 text-base">
                       <HeartPulse className="h-4 w-4 text-primary" />
@@ -496,7 +513,7 @@ export default function ConfiguracionesPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="rounded-xl border-border/70 shadow-sm">
+                <Card className="h-full rounded-xl border-border/70 shadow-sm">
                   <CardHeader className="space-y-1 pb-4">
                     <CardTitle className="flex items-center gap-2 text-base">
                       <BellRing className="h-4 w-4 text-primary" />
@@ -546,7 +563,7 @@ export default function ConfiguracionesPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="rounded-xl border-border/70 shadow-sm">
+                <Card className="h-full rounded-xl border-border/70 shadow-sm">
                   <CardHeader className="space-y-1 pb-4">
                     <CardTitle className="flex items-center gap-2 text-base">
                       <CalendarClock className="h-4 w-4 text-primary" />
@@ -618,7 +635,7 @@ export default function ConfiguracionesPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="rounded-xl border-border/70 shadow-sm">
+                <Card className="h-full rounded-xl border-border/70 shadow-sm">
                   <CardHeader className="space-y-1 pb-4">
                     <CardTitle className="flex items-center gap-2 text-base">
                       <Settings2 className="h-4 w-4 text-primary" />
