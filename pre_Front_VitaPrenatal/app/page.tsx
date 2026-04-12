@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { usePatients, RiskLevel as ContextRiskLevel, Consultation } from "@/lib/patient-context"
 import { useConfiguration } from "@/lib/configuration-context"
 import { consultaService } from "@/servicios/consultaService"
-import { PrediccionResponse } from "@/interfaz/consulta"
+import { Consulta as ApiConsulta, PrediccionResponse } from "@/interfaz/consulta"
 import { MainNav } from "@/components/navigation/main-nav"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { PatientInfoCard } from "@/components/dashboard/patient-info-card"
@@ -15,6 +15,7 @@ import { BloodPressureInputCard } from "@/components/dashboard/blood-pressure-in
 import { RecommendationsCard } from "@/components/dashboard/recommendations-card"
 import { PatientNotesCard } from "@/components/dashboard/patient-notes-card"
 import { ConsultationHistoryCard } from "@/components/dashboard/consultation-history-card"
+import { ReportDownloadCard } from "@/components/dashboard/report-download-card"
 import { ConsultationForm } from "@/components/patients/consultation-form"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -54,6 +55,26 @@ function mapApiRiskToContextRisk(riesgo: string | undefined): ContextRiskLevel {
   }
 }
 
+function hasInterpretation(interpretacion: string | null | undefined): boolean {
+  return typeof interpretacion === "string" && interpretacion.trim().length > 0
+}
+
+function buildPredictionFromConsulta(consulta: ApiConsulta, fallbackConsultaId: number): PrediccionResponse | null {
+  if (!hasInterpretation(consulta.interpretacion)) {
+    return null
+  }
+
+  return {
+    consulta_id: typeof consulta.id === "number" ? consulta.id : fallbackConsultaId,
+    riesgo: consulta.riesgo || "NINGUNO",
+    riesgo_ml: consulta.riesgo_ml || consulta.riesgo || "NINGUNO",
+    confianza_ml: typeof consulta.confianza_ml === "number" ? consulta.confianza_ml : Number.NaN,
+    score_total: typeof consulta.score_total === "number" ? consulta.score_total : Number.NaN,
+    interpretacion: consulta.interpretacion!.trim(),
+    datos_consulta: consulta,
+  }
+}
+
 // Generate BP history data from consultations
 function generateBPHistoryFromConsultations(consultations: Consultation[], type: "systolic" | "diastolic") {
   const sorted = [...consultations].sort((a, b) => {
@@ -83,40 +104,105 @@ export default function VitaPrenatalMonitoreoClinico() {
   const [systolicData, setSystolicData] = useState<{ week: string; value: number }[]>([])
   const [diastolicData, setDiastolicData] = useState<{ week: string; value: number }[]>([])
   const [showConsultationForm, setShowConsultationForm] = useState(false)
-  const [mounted, setMounted] = useState(false)
   const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
+  const [consultationDetails, setConsultationDetails] = useState<ApiConsulta | null>(null)
   const [predictionLoading, setPredictionLoading] = useState(false)
-  const [downloadingReport, setDownloadingReport] = useState(false)
+  const [openingPdfConsultationId, setOpeningPdfConsultationId] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState(() => new Date().toLocaleString())
+  const latestConsultationRequestId = useRef(0)
 
-  const fetchConsultationById = async (consultationId?: string) => {
+  const syncConsultationInContext = (consultationId: string, consultationFromApi: ApiConsulta) => {
+    if (!selectedPatient) {
+      return
+    }
+
+    const [date, rawTime = "00:00"] = consultationFromApi.fecha_hora_consulta.split("T")
+
+    updateConsultation(selectedPatient.id, consultationId, {
+      date,
+      time: rawTime.slice(0, 5),
+      gestationalWeek: consultationFromApi.edad_gestacional,
+      weight: consultationFromApi.peso,
+      height: consultationFromApi.altura,
+      bmi: consultationFromApi.imc,
+      systolic: consultationFromApi.presion_sistolica,
+      diastolic: consultationFromApi.presion_diastolica,
+      riskLevel: mapApiRiskToContextRisk(consultationFromApi.riesgo),
+    })
+  }
+
+  const loadConsultationClinicalData = async (consultationId?: string) => {
     if (!consultationId || !selectedPatient) {
+      setConsultationDetails(null)
+      setPrediction(null)
+      setPredictionLoading(false)
       return
     }
 
     const idNumber = Number.parseInt(consultationId, 10)
+
     if (Number.isNaN(idNumber)) {
-      console.warn("⚠️ fetchConsultationById: consultationId inválido", consultationId)
+      console.warn("⚠️ loadConsultationClinicalData: consultationId invalido", consultationId)
+      setPredictionLoading(false)
       return
     }
 
+    const requestId = latestConsultationRequestId.current + 1
+    latestConsultationRequestId.current = requestId
+
+    setPredictionLoading(true)
+    setPrediction(null)
+
     try {
       const consultationFromApi = await consultaService.obtenerPorId(idNumber)
-      const [date, rawTime = "00:00"] = consultationFromApi.fecha_hora_consulta.split("T")
 
-      updateConsultation(selectedPatient.id, consultationId, {
-        date,
-        time: rawTime.slice(0, 5),
-        gestationalWeek: consultationFromApi.edad_gestacional,
-        weight: consultationFromApi.peso,
-        height: consultationFromApi.altura,
-        bmi: consultationFromApi.imc,
-        systolic: consultationFromApi.presion_sistolica,
-        diastolic: consultationFromApi.presion_diastolica,
-        riskLevel: mapApiRiskToContextRisk(consultationFromApi.riesgo),
-      })
+      if (latestConsultationRequestId.current !== requestId) {
+        return
+      }
+
+      setConsultationDetails(consultationFromApi)
+      syncConsultationInContext(consultationId, consultationFromApi)
+
+      const storedPrediction = buildPredictionFromConsulta(consultationFromApi, idNumber)
+
+      if (storedPrediction) {
+        setPrediction(storedPrediction)
+        return
+      }
+
+      await consultaService.obtenerPrediccion(idNumber)
+
+      if (latestConsultationRequestId.current !== requestId) {
+        return
+      }
+
+      const refreshedConsultation = await consultaService.obtenerPorId(idNumber)
+
+      if (latestConsultationRequestId.current !== requestId) {
+        return
+      }
+
+      setConsultationDetails(refreshedConsultation)
+      syncConsultationInContext(consultationId, refreshedConsultation)
+      setPrediction(buildPredictionFromConsulta(refreshedConsultation, idNumber))
     } catch (error) {
-      console.error("Error fetching consultation by id:", error)
+      if (latestConsultationRequestId.current !== requestId) {
+        return
+      }
+
+      const errorMessage =
+        error instanceof Error ? error.message : "No fue posible cargar el analisis clinico de la consulta."
+
+      toast({
+        variant: "destructive",
+        title: "Error al cargar consulta",
+        description: errorMessage,
+      })
+      console.error("Error loading consultation details:", error)
+    } finally {
+      if (latestConsultationRequestId.current === requestId) {
+        setPredictionLoading(false)
+      }
     }
   }
 
@@ -128,10 +214,8 @@ export default function VitaPrenatalMonitoreoClinico() {
         method: "POST",
       })
 
-      await fetchConsultationById(consultation.id)
+      await loadConsultationClinicalData(consultation.id)
       await fetchNotificaciones()
-      setPrediction(null)
-      setPredictionLoading(false)
       setLastUpdated(new Date().toLocaleString())
     } catch (error) {
       console.error("Error:", error)
@@ -145,11 +229,6 @@ export default function VitaPrenatalMonitoreoClinico() {
       setDiastolic(selectedConsultation.diastolic)
     }
   }, [selectedConsultation])
-
-  // Set mounted
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   // Update chart data when patient changes
   useEffect(() => {
@@ -177,12 +256,6 @@ export default function VitaPrenatalMonitoreoClinico() {
     }
   }
 
-  const handleSaveNotes = (notes: string) => {
-    if (selectedPatient && selectedConsultation) {
-      updateConsultation(selectedPatient.id, selectedConsultation.id, { notes })
-    }
-  }
-
   const handleNewConsultation = async (consultationData: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory">) => {
     if (selectedPatient) {
       await addConsultation(selectedPatient.id, consultationData)
@@ -194,35 +267,53 @@ export default function VitaPrenatalMonitoreoClinico() {
     selectConsultation(consultation)
   }
 
-  const handleDownloadSelectedReport = async () => {
-    if (!selectedConsultation?.id) {
+  const handleGeneratePrediction = async () => {
+    if (!consultation?.id) {
       toast({
         variant: "destructive",
-        title: "No hay consulta seleccionada",
-        description: "Seleccione una consulta en el historial para descargar su reporte PDF.",
+        title: "Consulta no seleccionada",
+        description: "Seleccione una consulta para generar la prediccion clinica.",
       })
       return
     }
 
-    const consultaId = Number.parseInt(selectedConsultation.id, 10)
+    const interpretationExists =
+      hasInterpretation(prediction?.interpretacion) ||
+      hasInterpretation(consultationDetails?.interpretacion)
+
+    if (interpretationExists) {
+      toast({
+        title: "Prediccion existente",
+        description: "La consulta ya tiene interpretacion clinica registrada.",
+      })
+      return
+    }
+
+    await loadConsultationClinicalData(consultation.id)
+  }
+
+  const handleOpenReportPdf = async (consultationId: string) => {
+    const consultaId = Number.parseInt(consultationId, 10)
 
     if (Number.isNaN(consultaId)) {
       toast({
         variant: "destructive",
-        title: "Consulta inválida",
+        title: "Consulta invalida",
         description: "No se pudo identificar la consulta seleccionada.",
       })
       return
     }
 
-    setDownloadingReport(true)
+    setOpeningPdfConsultationId(consultationId)
 
     try {
-      await consultaService.descargarReportePdf(consultaId)
-      toast({
-        title: "Reporte descargado",
-        description: `Se descargó reporte_${consultaId}.pdf correctamente.`,
-      })
+      const reportUrl = consultaService.obtenerUrlReportePdf(consultaId)
+      const opened = window.open(reportUrl, "_blank", "noopener,noreferrer")
+
+      if (!opened) {
+        // Fallback when popup opening is blocked by browser settings.
+        await consultaService.descargarReportePdf(consultaId)
+      }
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "No fue posible descargar el reporte PDF."
@@ -233,7 +324,9 @@ export default function VitaPrenatalMonitoreoClinico() {
         description: errorMessage,
       })
     } finally {
-      setDownloadingReport(false)
+      setOpeningPdfConsultationId((current) =>
+        current === consultationId ? null : current,
+      )
     }
   }
 
@@ -287,9 +380,7 @@ export default function VitaPrenatalMonitoreoClinico() {
   
   // Refresh consultation details when consultation changes.
   useEffect(() => {
-    setPrediction(null)
-    setPredictionLoading(false)
-    void fetchConsultationById(consultation?.id)
+    void loadConsultationClinicalData(consultation?.id)
   }, [consultation?.id, selectedPatient?.id])
   
   if (!consultation) {
@@ -351,9 +442,20 @@ export default function VitaPrenatalMonitoreoClinico() {
         score_total: prediction.score_total,
       }
     : {
-        riesgo: backendRisk,
-        riesgo_ml: backendRisk,
+        riesgo: consultationDetails?.riesgo || backendRisk,
+        riesgo_ml: consultationDetails?.riesgo_ml || consultationDetails?.riesgo || backendRisk,
+        confianza_ml: consultationDetails?.confianza_ml ?? undefined,
+        score_total: consultationDetails?.score_total ?? undefined,
       }
+
+  const clinicalInterpretation = hasInterpretation(prediction?.interpretacion)
+    ? prediction?.interpretacion
+    : hasInterpretation(consultationDetails?.interpretacion)
+      ? consultationDetails?.interpretacion
+      : null
+
+  const reportIsAvailable = hasInterpretation(clinicalInterpretation)
+  const canGeneratePrediction = !!consultation.id && !reportIsAvailable
 
   return (
     <div className="min-h-screen bg-background">
@@ -373,8 +475,8 @@ export default function VitaPrenatalMonitoreoClinico() {
               selectedConsultationId={selectedConsultation?.id || null}
               onSelectConsultation={handleSelectConsultation}
               onNewConsultation={() => setShowConsultationForm(true)}
-              onDownloadSelectedReport={handleDownloadSelectedReport}
-              downloadingReport={downloadingReport}
+              onDownloadConsultationReport={handleOpenReportPdf}
+              downloadingConsultationId={openingPdfConsultationId}
             />
           </div>
 
@@ -418,18 +520,22 @@ export default function VitaPrenatalMonitoreoClinico() {
           <div className="md:col-span-2 xl:col-span-4 space-y-6">
             <RecommendationsCard 
               riesgo={currentRiskData.riesgo}
-              consultationId={consultation?.id}
-              onPredictionChange={setPrediction}
-              mlData={prediction ? {
-                riesgo: prediction.riesgo,
-                riesgo_ml: prediction.riesgo_ml,
-                confianza_ml: prediction.confianza_ml,
-                score_total: prediction.score_total
-              } : undefined}
+              interpretation={clinicalInterpretation}
+              isLoadingInterpretation={predictionLoading && !clinicalInterpretation}
+              onGeneratePrediction={handleGeneratePrediction}
+              canGeneratePrediction={canGeneratePrediction}
             />
+
+            <ReportDownloadCard
+              consultationId={consultation.id}
+              isAvailable={reportIsAvailable}
+              onDownloadReport={handleOpenReportPdf}
+              downloadingConsultationId={openingPdfConsultationId}
+            />
+
             <PatientNotesCard 
-              onSave={handleSaveNotes} 
-              initialNotes={selectedConsultation?.notes || ""}
+              consultationId={consultation.id}
+              patientId={consultationDetails?.paciente_id || null}
             />
           </div>
         </div>

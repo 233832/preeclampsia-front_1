@@ -49,13 +49,21 @@ export const consultaService = {
         return data;
     },
 
+    obtenerUrlReportePdf: (idConsulta: number): string => {
+        if (!Number.isFinite(idConsulta) || idConsulta <= 0) {
+            throw new Error('ID de consulta invalido para generar URL del reporte.');
+        }
+
+        return buildApiUrl(`/api/reportes/${idConsulta}`);
+    },
+
     // Descargar reporte PDF de una consulta
     descargarReportePdf: async (idConsulta: number): Promise<void> => {
         if (!Number.isFinite(idConsulta) || idConsulta <= 0) {
             throw new Error("ID de consulta inválido para descargar reporte.");
         }
 
-        const response = await fetchApi(`/api/consultas/${idConsulta}/pdf`, {
+        const response = await fetchApi(`/api/reportes/${idConsulta}`, {
             method: 'GET',
             headers: {
                 Accept: 'application/pdf',

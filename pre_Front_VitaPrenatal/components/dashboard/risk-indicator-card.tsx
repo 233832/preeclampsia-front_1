@@ -20,32 +20,38 @@ const riskConfig = {
   NINGUNO: {
     label: "NINGUNO",
     icon: ShieldCheck,
+    color: "#B0BEC5",
     bgColor: "bg-muted/20",
     textColor: "text-muted-foreground",
-    borderColor: "border-muted",
+    borderColor: "border-muted/70",
   },
   BAJO: {
     label: "BAJO",
     icon: AlertCircle,
+    color: "#55efc4",
     bgColor: "bg-risk-low/10",
-    textColor: "text-risk-low",
-    borderColor: "border-risk-low",
+    textColor: "text-emerald-700",
+    borderColor: "border-emerald-300",
   },
   MEDIO: {
     label: "MEDIO",
     icon: AlertTriangle,
-    bgColor: "bg-yellow-500/10",
-    textColor: "text-yellow-600",
-    borderColor: "border-yellow-500",
+    color: "#ffeaa7",
+    bgColor: "bg-amber-100/60",
+    textColor: "text-amber-700",
+    borderColor: "border-amber-300",
   },
   ALTO: {
     label: "ALTO",
     icon: ShieldAlert,
-    bgColor: "bg-risk-high/10",
-    textColor: "text-risk-high",
-    borderColor: "border-risk-high",
+    color: "#ff7675",
+    bgColor: "bg-rose-100/60",
+    textColor: "text-rose-700",
+    borderColor: "border-rose-300",
   },
 }
+
+const trafficOrder: BackendRisk[] = ["NINGUNO", "BAJO", "MEDIO", "ALTO"]
 
 const normalizeBackendRisk = (riesgo: string): BackendRisk => {
   switch ((riesgo || "NINGUNO").toUpperCase()) {
@@ -104,7 +110,10 @@ export function RiskIndicatorCard({ data, isLoading = false }: RiskIndicatorCard
   const Icon = config.icon
 
   return (
-    <Card className={cn("border-2 shadow-lg", config.borderColor, config.bgColor)}>
+    <Card
+      className={cn("border-2 shadow-lg transition-all duration-500", config.borderColor, config.bgColor)}
+      style={{ boxShadow: `0 10px 24px ${config.color}33` }}
+    >
       <CardHeader className="pb-2 space-y-2">
         <CardTitle className="flex justify-center">
           <span
@@ -126,41 +135,29 @@ export function RiskIndicatorCard({ data, isLoading = false }: RiskIndicatorCard
       <CardContent className="flex flex-col items-center gap-4 pt-2">
         {/* Horizontal Traffic Light System - 4 levels */}
         <div className="flex items-center justify-center gap-3 p-4 rounded-xl bg-card border border-border/50 shadow-inner">
-          {/* Ningún Riesgo - Gris */}
-          <div
-            className={cn(
-              "w-6 h-6 rounded-full transition-all duration-500 shadow-md cursor-help",
-              riskLevel === "NINGUNO" ? "bg-muted shadow-muted/50 scale-110" : "bg-muted/30 opacity-50"
-            )}
-            title="Ningún Riesgo - Sin indicadores de preeclampsia"
-          />
-          {/* Riesgo Bajo - Verde */}
-          <div
-            className={cn(
-              "w-6 h-6 rounded-full transition-all duration-500 shadow-md cursor-help",
-              riskLevel === "BAJO" ? "bg-risk-low shadow-risk-low/50 scale-110" : "bg-risk-low/30 opacity-50"
-            )}
-            title="Riesgo Bajo - Monitoreo regular recomendado"
-          />
-          {/* Riesgo Medio - Amarillo */}
-          <div
-            className={cn(
-              "w-6 h-6 rounded-full transition-all duration-500 shadow-md cursor-help",
-              riskLevel === "MEDIO" ? "bg-yellow-500 shadow-yellow-500/50 scale-110" : "bg-yellow-500/30 opacity-50"
-            )}
-            title="Riesgo Medio - Atención médica inmediata requerida"
-          />
-          {/* Riesgo Alto - Rojo */}
-          <div
-            className={cn(
-              "w-6 h-6 rounded-full transition-all duration-500 shadow-md cursor-help",
-              riskLevel === "ALTO" ? "bg-risk-high shadow-risk-high/50 scale-110" : "bg-risk-high/30 opacity-50"
-            )}
-            title="Riesgo Alto - Intervención médica urgente necesaria"
-          />
+          {trafficOrder.map((level) => {
+            const levelConfig = riskConfig[level]
+            const isActive = level === riskLevel
+
+            return (
+              <div
+                key={level}
+                className="w-7 h-7 rounded-full border transition-all duration-500"
+                title={`Nivel ${level}`}
+                style={{
+                  backgroundColor: levelConfig.color,
+                  borderColor: levelConfig.color,
+                  opacity: isActive ? 1 : 0.28,
+                  transform: isActive ? "scale(1.15)" : "scale(1)",
+                  boxShadow: isActive
+                    ? `0 0 0 2px ${levelConfig.color}55, 0 0 18px ${levelConfig.color}`
+                    : "none",
+                }}
+              />
+            )
+          })}
         </div>
 
-        {/* Risk Level Badge */}
         <div className={cn("flex items-center gap-2 px-4 py-2 rounded-full", config.bgColor)}>
           <Icon className={cn("h-5 w-5", config.textColor)} />
           <span className={cn("text-lg font-bold", config.textColor)}>
@@ -168,7 +165,6 @@ export function RiskIndicatorCard({ data, isLoading = false }: RiskIndicatorCard
           </span>
         </div>
 
-        {/* ML Risk and Confidence */}
         <div className="text-center">
           <p className="text-xs text-muted-foreground">
             ML: {mlRisk}
@@ -178,11 +174,15 @@ export function RiskIndicatorCard({ data, isLoading = false }: RiskIndicatorCard
           </p>
         </div>
 
-        {/* Score - Less prominent */}
         <div className="text-center">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground font-medium">
             Score: {scoreText}
           </p>
+          {isLoading && (
+            <p className="text-[11px] text-primary mt-1 animate-pulse">
+              Generando analisis clinico...
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

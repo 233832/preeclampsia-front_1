@@ -11,6 +11,10 @@ export interface Consulta {
     presion_sistolica: number;
     presion_diastolica: number;
     riesgo?: string;
+    riesgo_ml?: string | null;
+    confianza_ml?: number | null;
+    score_total?: number | null;
+    interpretacion?: string | null;
 }
 
 export interface PrediccionResponse {

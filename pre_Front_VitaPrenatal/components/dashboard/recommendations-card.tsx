@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,24 +12,17 @@ import {
   Info,
   Salad,
   BedDouble,
-  Bot
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { PrediccionResponse } from "@/interfaz/consulta"
-import { consultaService } from "@/servicios/consultaService"
 
 type BackendRisk = "NINGUNO" | "BAJO" | "MEDIO" | "ALTO"
 
 interface RecommendationsCardProps {
   riesgo: string
-  consultationId?: string
-  onPredictionChange?: (prediction: PrediccionResponse | null) => void
-  mlData?: {
-    riesgo: string;
-    riesgo_ml: string;
-    confianza_ml: number;
-    score_total: number;
-  }
+  interpretation?: string | null
+  isLoadingInterpretation?: boolean
+  onGeneratePrediction?: () => void
+  canGeneratePrediction?: boolean
 }
 
 const recommendationsByRisk = {
@@ -163,32 +155,14 @@ const normalizeBackendRisk = (riesgo: string): BackendRisk => {
   }
 }
 
-export function RecommendationsCard({ riesgo, consultationId, onPredictionChange, mlData }: RecommendationsCardProps) {
-  const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  // Use backend riesgo from IA response when available; otherwise use backend riesgo from consulta.
-  const currentRisk = normalizeBackendRisk(mlData ? mlData.riesgo : riesgo)
-
-  useEffect(() => {
-    setPrediction(null)
-    onPredictionChange?.(null)
-  }, [consultationId, onPredictionChange])
-
-  const handleGenerateAI = async () => {
-    if (!consultationId) return
-
-    setLoading(true)
-    try {
-      const pred = await consultaService.obtenerPrediccion(parseInt(consultationId))
-      setPrediction(pred)
-      onPredictionChange?.(pred)
-    } catch (error) {
-      console.error('Error fetching prediction:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+export function RecommendationsCard({
+  riesgo,
+  interpretation,
+  isLoadingInterpretation = false,
+  onGeneratePrediction,
+  canGeneratePrediction = false,
+}: RecommendationsCardProps) {
+  const currentRisk = normalizeBackendRisk(riesgo)
 
   const recommendations = recommendationsByRisk[currentRisk]
   const styles = riskStyles[currentRisk]
@@ -200,81 +174,62 @@ export function RecommendationsCard({ riesgo, consultationId, onPredictionChange
           <CardTitle className="flex items-center gap-2 text-base font-semibold flex-wrap">
             <Sparkles className="h-4 w-4 text-primary flex-shrink-0" />
             <span>Recomendaciones</span>
-            <Badge variant="secondary" className="text-xs font-normal gap-1">
-              <Sparkles className="h-3 w-3" />
-              IA
-            </Badge>
           </CardTitle>
           <Badge variant="outline" className={cn("text-xs flex-shrink-0", styles.badge)}>
             {riskLabels[currentRisk]}
           </Badge>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Generado por IA (Gemini)
-        </p>
+        <p className="text-xs text-muted-foreground mt-1">Sugerencias segun nivel de riesgo clinico</p>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-3 w-full"
+          onClick={onGeneratePrediction}
+          disabled={!canGeneratePrediction || isLoadingInterpretation}
+        >
+          {isLoadingInterpretation
+            ? "Generando analisis clinico..."
+            : canGeneratePrediction
+              ? "Prediccion Consulta"
+              : "Prediccion ya generada"}
+        </Button>
       </CardHeader>
       <CardContent>
-        {prediction ? (
-          <div className="space-y-4">
-            <div className="text-sm text-foreground leading-relaxed max-h-96 overflow-y-auto whitespace-pre-wrap">
-              {prediction.interpretacion}
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => {
-                setPrediction(null)
-                onPredictionChange?.(null)
-              }}
-              className="w-full"
-            >
-              <Bot className="h-4 w-4 mr-2" />
-              Ocultar Análisis IA
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {recommendations.map((rec, index) => {
-              const Icon = rec.icon
-              return (
-                <div key={index} className="flex gap-3">
-                  <div className={cn("p-2 rounded-lg h-fit", styles.iconBg)}>
-                    <Icon className={cn("h-4 w-4", styles.iconColor)} />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium text-sm">{rec.title}</h4>
-                    <p className="text-sm text-muted-foreground mt-0.5">{rec.description}</p>
-                  </div>
-                </div>
-              )
-            })}
-            
-            {consultationId && (
-              <div className="pt-4 border-t">
-                <Button 
-                  onClick={handleGenerateAI} 
-                  disabled={loading}
-                  className="w-full gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Generando...
-                    </>
-                  ) : (
-                    <>
-                      <Bot className="h-4 w-4" />
-                      Generar Análisis con IA
-                    </>
-                  )}
-                </Button>
-                <p className="text-xs text-muted-foreground mt-2 text-center">
-                  Obtén recomendaciones personalizadas con Gemini AI
-                </p>
-              </div>
-            )}
+        {isLoadingInterpretation && (
+          <div className="mb-4 rounded-lg border border-primary/25 bg-primary/5 p-3">
+            <p className="text-sm text-primary animate-pulse">Generando analisis clinico...</p>
           </div>
         )}
+
+        {interpretation && !isLoadingInterpretation && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <p className="text-xs text-primary font-semibold mb-1">Interpretacion clinica</p>
+              <div className="text-sm text-foreground leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
+                {interpretation}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-4 mt-4">
+          {recommendations.map((rec, index) => {
+            const Icon = rec.icon
+            return (
+              <div key={index} className="flex gap-3">
+                <div className={cn("p-2 rounded-lg h-fit", styles.iconBg)}>
+                  <Icon className={cn("h-4 w-4", styles.iconColor)} />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-medium text-sm">{rec.title}</h4>
+                  <p className="text-sm text-muted-foreground mt-0.5">{rec.description}</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
 
         {/* Disclaimer */}
         <div className="mt-6 p-4 rounded-lg bg-primary/5 border border-primary/20">
