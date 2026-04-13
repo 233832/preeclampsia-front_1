@@ -1,14 +1,24 @@
 "use client"
 
+import type { ReactNode } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { Heart, LayoutDashboard, Users, Bell, Settings } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import {
+  Heart,
+  LayoutDashboard,
+  Users,
+  Bell,
+  Settings,
+  RefreshCw,
+  Calendar,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useConfiguration } from "@/lib/configuration-context"
 import { cn } from "@/lib/utils"
 
 const navItems = [
   {
-    label: "Dashboard",
+    label: "Monitoreo Clínico",
     href: "/",
     icon: LayoutDashboard,
   },
@@ -19,13 +29,34 @@ const navItems = [
   },
 ]
 
-export function MainNav() {
+interface MainNavProps {
+  showRefresh?: boolean
+  onRefresh?: () => void
+  lastUpdated?: string
+  hideUtilityActions?: boolean
+  subHeader?: ReactNode
+}
+
+export function MainNav({
+  showRefresh = false,
+  onRefresh,
+  lastUpdated,
+  hideUtilityActions = false,
+  subHeader,
+}: MainNavProps) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { notifications } = useConfiguration()
+
+  const unreadCount = notifications.length
+
+  const notificationsActive = pathname === "/notificaciones"
+  const settingsActive = pathname === "/configuraciones"
 
   return (
     <header className="border-b border-border/50 bg-card/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           {/* Logo and Title */}
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10 flex-shrink-0">
@@ -36,7 +67,7 @@ export function MainNav() {
                 VitaPrenatal
               </h1>
               <p className="text-xs text-muted-foreground">
-                Sistema de prediccion de riesgo de preeclampsia
+                Sistema de predicción temprana de riesgo de preeclampsia basado en ML
               </p>
             </div>
           </div>
@@ -64,16 +95,63 @@ export function MainNav() {
           </nav>
 
           {/* Actions */}
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
-            </Button>
-            <Button variant="ghost" size="icon">
-              <Settings className="h-5 w-5" />
-            </Button>
-          </div>
+          {!hideUtilityActions && (
+            <div className="flex items-center gap-1 sm:gap-2">
+              {showRefresh && onRefresh && (
+                <>
+                  {lastUpdated && (
+                    <div className="hidden lg:flex items-center gap-2 text-sm text-muted-foreground">
+                      <Calendar className="h-4 w-4 flex-shrink-0" />
+                      <span className="whitespace-nowrap">Actualizado: {lastUpdated}</span>
+                    </div>
+                  )}
+                  <Button variant="outline" size="sm" onClick={onRefresh} className="gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    <span className="hidden sm:inline">Actualizar</span>
+                  </Button>
+                </>
+              )}
+
+              <Button
+                type="button"
+                variant={notificationsActive ? "secondary" : "ghost"}
+                size="icon"
+                aria-label="Ver notificaciones"
+                onClick={() => {
+                  router.push("/notificaciones")
+                }}
+                className={cn(
+                  "relative",
+                  notificationsActive && "bg-primary/10 text-primary hover:bg-primary/15",
+                )}
+              >
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-card">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </Button>
+
+              <Button
+                asChild
+                variant={settingsActive ? "secondary" : "ghost"}
+                size="icon"
+                className={cn(
+                  settingsActive && "bg-primary/10 text-primary hover:bg-primary/15",
+                )}
+              >
+                <Link href="/configuraciones" aria-label="Abrir configuraciones">
+                    <Settings className="h-5 w-5" />
+                </Link>
+              </Button>
+            </div>
+          )}
         </div>
+
+        {subHeader && (
+          <div className="mt-3 border-t border-border/40 pt-3">{subHeader}</div>
+        )}
       </div>
     </header>
   )

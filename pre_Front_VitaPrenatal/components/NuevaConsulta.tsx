@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { consultaService } from "@/servicios/consultaService";
 import { Consulta } from "@/interfaz/consulta";
+import { getCurrentMexicoIsoDateTime } from "@/lib/mexico-time"
 
 export default function NuevaConsulta() {
   // 1. Estado para los datos del formulario (el molde de la interfaz)
   const [datosForm, setDatosForm] = useState<Consulta>({
     paciente_id: 1, // Estos IDs normalmente vienen de una selección previa
     expediente_id: 1,
-    fecha_hora_consulta: new Date().toISOString(),
+    fecha_hora_consulta: getCurrentMexicoIsoDateTime(),
     edad_madre: 0,
     edad_gestacional: 0,
     altura: 0,
@@ -27,11 +28,8 @@ export default function NuevaConsulta() {
       const nuevaConsulta = await consultaService.crear(datosForm);
       console.log("Consulta guardada con ID:", nuevaConsulta.id);
 
-      // B. Pedimos la predicción a Gemini
-      const analisis = await consultaService.obtenerPrediccion(nuevaConsulta.id);
-      
-      // C. Mostramos el resultado
-      alert(`Riesgo: ${analisis.riesgo}\nInterpretación: ${analisis.interpretacion}`);
+      // B. La predicción se solicita únicamente desde el botón de IA en el dashboard.
+      alert("Consulta guardada correctamente.");
       
     } catch (error) {
       console.error("Algo salió mal:", error);
@@ -76,7 +74,7 @@ export default function NuevaConsulta() {
           type="submit" 
           className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full"
         >
-          Guardar y Analizar Riesgo
+          Guardar Consulta
         </button>
       </form>
     </div>

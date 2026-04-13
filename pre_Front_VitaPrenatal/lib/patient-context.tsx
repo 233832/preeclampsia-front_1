@@ -4,6 +4,8 @@ import { createContext, useContext, useState, ReactNode, useEffect } from "react
 import { pacienteService } from '@/servicios/pacienteService';
 import { expedienteService } from '@/servicios/expedienteService';
 import { consultaService } from '@/servicios/consultaService';
+import type { Consulta as ApiConsulta } from '@/interfaz/consulta';
+import { extractDateTimeInMexico, getDateTimeSortKey } from "@/lib/mexico-time"
 
 export type RiskLevel = "none" | "low" | "moderate" | "high"
 
@@ -19,6 +21,26 @@ function mapApiRisk(riesgo: string): RiskLevel {
       return "high"
     default:
       return "none"
+  }
+}
+
+type ApiConsultaConId = ApiConsulta & { id: number }
+
+function hasConsultaId(consulta: ApiConsulta): consulta is ApiConsultaConId {
+  return typeof consulta.id === "number"
+}
+
+function getConsultationDateTimeFromApi(value: string): { date: string; time: string } {
+  const normalized = extractDateTimeInMexico(value)
+
+  if (normalized) {
+    return normalized
+  }
+
+  const [date = "", rawTime = "00:00"] = value.split("T")
+  return {
+    date,
+    time: rawTime.slice(0, 5),
   }
 }
 
@@ -57,10 +79,9 @@ export interface Patient {
 // Helper to get latest consultation
 export function getLatestConsultation(patient: Patient): Consultation | null {
   if (patient.consultations.length === 0) return null
-  return patient.consultations.sort((a, b) => {
-    const dateA = new Date(`${a.date}T${a.time}`)
-    const dateB = new Date(`${b.date}T${b.time}`)
-    return dateB.getTime() - dateA.getTime()
+
+  return [...patient.consultations].sort((a, b) => {
+    return getDateTimeSortKey(b.date, b.time).localeCompare(getDateTimeSortKey(a.date, a.time))
   })[0]
 }
 
@@ -73,7 +94,7 @@ interface PatientContextType {
   updatePatient: (id: string, patient: Partial<Omit<Patient, "consultations">>) => void
   deletePatient: (id: string) => void
   selectPatient: (patient: Patient | null) => void
-  addConsultation: (patientId: string, consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability">) => void
+  addConsultation: (patientId: string, consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory">) => void
   selectConsultation: (consultation: Consultation | null) => void
   updateConsultation: (patientId: string, consultationId: string, data: Partial<Consultation>) => void
 }
@@ -83,35 +104,6 @@ const PatientContext = createContext<PatientContextType | undefined>(undefined)
 function calculateBMI(weight: number, height: number): number {
   const heightInMeters = height / 100
   return weight / (heightInMeters * heightInMeters)
-}
-
-function calculateRiskLevel(
-  systolic: number,
-  diastolic: number,
-  previousHypertension: boolean,
-  diabetes: boolean,
-  familyHypertensionHistory: boolean
-): { level: RiskLevel; probability: number } {
-  let riskScore = 0
-
-  // Blood pressure contribution
-  if (systolic >= 140 || diastolic >= 90) {
-    riskScore += 3
-  } else if (systolic >= 130 || diastolic >= 80) {
-    riskScore += 2
-  } else if (systolic >= 120) {
-    riskScore += 1
-  }
-
-  // History contribution
-  if (previousHypertension) riskScore += 2
-  if (diabetes) riskScore += 1
-  if (familyHypertensionHistory) riskScore += 1
-
-  if (riskScore >= 5) return { level: "high", probability: 99.9 }
-  if (riskScore >= 3) return { level: "moderate", probability: 66.6 }
-  if (riskScore >= 1) return { level: "low", probability: 33.3 }
-  return { level: "none", probability: 0 }
 }
 
 // Sample patients data with consultations
@@ -133,25 +125,28 @@ export function PatientProvider({ children }: { children: ReactNode }) {
 
         for (const exp of expedientes) {
           const paciente = await pacienteService.obtenerPorId(exp.paciente_id);
-          const consultasForExp = allConsultas.filter(c => c.expediente_id === exp.id).map(c => {
-            console.log(`📋 Procesando consulta ID ${c.id}:`, { riesgo: c.riesgo, presion_sistolica: c.presion_sistolica, presion_diastolica: c.presion_diastolica, imc: c.imc });
-            return {
-              id: c.id.toString(),
-              date: c.fecha_hora_consulta.split('T')[0],
-              time: c.fecha_hora_consulta.split('T')[1].slice(0,5),
-              gestationalWeek: c.edad_gestacional,
-              weight: c.peso,
-              height: c.altura,
-              bmi: c.imc,
-              systolic: c.presion_sistolica,
-              diastolic: c.presion_diastolica,
-              previousHypertension: paciente.hipertension_previa,
-              diabetes: paciente.diabetes,
-              familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
-              riskLevel: mapApiRisk(c.riesgo || "NINGUNO"),
-              riskProbability: 0, // Could be calculated or from API if available
-            }
-          });
+          const consultasForExp = allConsultas
+            .filter((c): c is ApiConsultaConId => c.expediente_id === exp.id && hasConsultaId(c))
+            .map((c) => {
+              const { date, time } = getConsultationDateTimeFromApi(c.fecha_hora_consulta)
+              console.log(`📋 Procesando consulta ID ${c.id}:`, { riesgo: c.riesgo, presion_sistolica: c.presion_sistolica, presion_diastolica: c.presion_diastolica, imc: c.imc });
+              return {
+                id: c.id.toString(),
+                date,
+                time,
+                gestationalWeek: c.edad_gestacional,
+                weight: c.peso,
+                height: c.altura,
+                bmi: c.imc,
+                systolic: c.presion_sistolica,
+                diastolic: c.presion_diastolica,
+                previousHypertension: paciente.hipertension_previa,
+                diabetes: paciente.diabetes,
+                familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
+                riskLevel: mapApiRisk(c.riesgo || "NINGUNO"),
+                riskProbability: 0, // Could be calculated or from API if available
+              }
+            });
 
           const patient: Patient = {
             id: exp.id.toString(),
@@ -227,33 +222,28 @@ export function PatientProvider({ children }: { children: ReactNode }) {
       const patientMap = new Map<string, Patient>();
       for (const exp of expedientes) {
         const paciente = await pacienteService.obtenerPorId(exp.paciente_id);
-        const consultasForExp = allConsultas.filter(c => c.expediente_id === exp.id).map(c => ({
-          id: c.id.toString(),
-          date: c.fecha_hora_consulta.split('T')[0],
-          time: c.fecha_hora_consulta.split('T')[1].slice(0,5),
-          gestationalWeek: c.edad_gestacional,
-          weight: c.peso,
-          height: c.altura,
-          bmi: c.imc,
-          systolic: c.presion_sistolica,
-          diastolic: c.presion_diastolica,
-          previousHypertension: paciente.hipertension_previa,
-          diabetes: paciente.diabetes,
-          familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
-          riskLevel: 'none' as RiskLevel,
-          riskProbability: 0,
-        }));
-        consultasForExp.forEach(consult => {
-          const { level, probability } = calculateRiskLevel(
-            consult.systolic,
-            consult.diastolic,
-            consult.previousHypertension,
-            consult.diabetes,
-            consult.familyHypertensionHistory
-          );
-          consult.riskLevel = level;
-          consult.riskProbability = probability;
-        });
+        const consultasForExp = allConsultas
+          .filter((c): c is ApiConsultaConId => c.expediente_id === exp.id && hasConsultaId(c))
+          .map((c) => {
+            const { date, time } = getConsultationDateTimeFromApi(c.fecha_hora_consulta)
+
+            return {
+              id: c.id.toString(),
+              date,
+              time,
+              gestationalWeek: c.edad_gestacional,
+              weight: c.peso,
+              height: c.altura,
+              bmi: c.imc,
+              systolic: c.presion_sistolica,
+              diastolic: c.presion_diastolica,
+              previousHypertension: paciente.hipertension_previa,
+              diabetes: paciente.diabetes,
+              familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
+              riskLevel: mapApiRisk(c.riesgo || "NINGUNO"),
+              riskProbability: 0,
+            }
+          });
         const patient: Patient = {
           id: exp.id.toString(),
           name: paciente.nombre,
@@ -307,14 +297,22 @@ export function PatientProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const addConsultation = async (patientId: string, consultationData: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability">) => {
+  const addConsultation = async (patientId: string, consultationData: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory">) => {
     const patient = patients.find(p => p.id === patientId);
     if (!patient) return;
 
     try {
+      const expedienteId = Number.parseInt(patientId, 10)
+      if (Number.isNaN(expedienteId)) {
+        console.error("ID de expediente inválido:", patientId)
+        return
+      }
+
+      const expediente = await expedienteService.obtenerPorId(expedienteId)
+
       const consultaData = {
-        paciente_id: parseInt(patientId), // wait, patientId is expediente id, but paciente_id is separate.
-        expediente_id: parseInt(patientId),
+        paciente_id: expediente.paciente_id,
+        expediente_id: expedienteId,
         fecha_hora_consulta: `${consultationData.date}T${consultationData.time}:00`,
         edad_madre: patient.age,
         edad_gestacional: consultationData.gestationalWeek,
@@ -330,33 +328,28 @@ export function PatientProvider({ children }: { children: ReactNode }) {
       
       // Reload consultations for this patient
       const allConsultas = await consultaService.listar();
-      const consultasForExp = allConsultas.filter(c => c.expediente_id === parseInt(patientId)).map(c => ({
-        id: c.id.toString(),
-        date: c.fecha_hora_consulta.split('T')[0],
-        time: c.fecha_hora_consulta.split('T')[1].slice(0,5),
-        gestationalWeek: c.edad_gestacional,
-        weight: c.peso,
-        height: c.altura,
-        bmi: c.imc,
-        systolic: c.presion_sistolica,
-        diastolic: c.presion_diastolica,
-        previousHypertension: patient.previousHypertension,
-        diabetes: patient.diabetes,
-        familyHypertensionHistory: patient.familyHypertensionHistory,
-        riskLevel: 'none' as RiskLevel,
-        riskProbability: 0,
-      }));
-      consultasForExp.forEach(consult => {
-        const { level, probability } = calculateRiskLevel(
-          consult.systolic,
-          consult.diastolic,
-          consult.previousHypertension,
-          consult.diabetes,
-          consult.familyHypertensionHistory
-        );
-        consult.riskLevel = level;
-        consult.riskProbability = probability;
-      });
+      const consultasForExp = allConsultas
+        .filter((c): c is ApiConsultaConId => c.expediente_id === expedienteId && hasConsultaId(c))
+        .map((c) => {
+          const { date, time } = getConsultationDateTimeFromApi(c.fecha_hora_consulta)
+
+          return {
+            id: c.id.toString(),
+            date,
+            time,
+            gestationalWeek: c.edad_gestacional,
+            weight: c.peso,
+            height: c.altura,
+            bmi: c.imc,
+            systolic: c.presion_sistolica,
+            diastolic: c.presion_diastolica,
+            previousHypertension: patient.previousHypertension,
+            diabetes: patient.diabetes,
+            familyHypertensionHistory: patient.familyHypertensionHistory,
+            riskLevel: mapApiRisk(c.riesgo || "NINGUNO"),
+            riskProbability: 0,
+          }
+        });
       
       setPatients(prev => prev.map(p => p.id === patientId ? { ...p, consultations: consultasForExp } : p));
       
@@ -390,25 +383,6 @@ export function PatientProvider({ children }: { children: ReactNode }) {
               updated.bmi = calculateBMI(updated.weight, updated.height)
             }
 
-            // Recalculate risk if relevant fields changed
-            if (
-              data.systolic !== undefined ||
-              data.diastolic !== undefined ||
-              data.previousHypertension !== undefined ||
-              data.diabetes !== undefined ||
-              data.familyHypertensionHistory !== undefined
-            ) {
-              const { level, probability } = calculateRiskLevel(
-                updated.systolic,
-                updated.diastolic,
-                updated.previousHypertension,
-                updated.diabetes,
-                updated.familyHypertensionHistory
-              )
-              updated.riskLevel = level
-              updated.riskProbability = probability
-            }
-
             return updated
           }),
         }
@@ -420,23 +394,6 @@ export function PatientProvider({ children }: { children: ReactNode }) {
       const updated = { ...selectedConsultation, ...data }
       if (data.weight !== undefined || data.height !== undefined) {
         updated.bmi = calculateBMI(updated.weight, updated.height)
-      }
-      if (
-        data.systolic !== undefined ||
-        data.diastolic !== undefined ||
-        data.previousHypertension !== undefined ||
-        data.diabetes !== undefined ||
-        data.familyHypertensionHistory !== undefined
-      ) {
-        const { level, probability } = calculateRiskLevel(
-          updated.systolic,
-          updated.diastolic,
-          updated.previousHypertension,
-          updated.diabetes,
-          updated.familyHypertensionHistory
-        )
-        updated.riskLevel = level
-        updated.riskProbability = probability
       }
       setSelectedConsultation(updated)
     }

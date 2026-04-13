@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Eye, Pencil, Trash2, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatDateInMexico } from "@/lib/mexico-time"
 
 interface PatientsTableProps {
   patients: Patient[]
@@ -57,12 +58,7 @@ const riskConfig: Record<RiskLevel, { label: string; bgColor: string; textColor:
 }
 
 function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString("es-MX", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  })
+  return formatDateInMexico(dateString)
 }
 
 export function PatientsTable({ patients, onView, onEdit, onDelete }: PatientsTableProps) {
@@ -153,7 +149,7 @@ export function PatientsTable({ patients, onView, onEdit, onDelete }: PatientsTa
                           size="icon"
                           className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
                           onClick={() => onView(patient)}
-                          title="Ver en Dashboard"
+                          title="Ver en Monitoreo Clínico"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>

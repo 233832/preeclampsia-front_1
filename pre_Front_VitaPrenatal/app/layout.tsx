@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Source_Sans_3 } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { PatientProvider } from '@/lib/patient-context'
+import { ConfigurationProvider } from '@/lib/configuration-context'
 import './globals.css'
 
 const inter = Inter({ 
@@ -32,7 +33,9 @@ export default function RootLayout({
     <html lang="es">
       <body className={`${inter.variable} ${sourceSans.variable} font-sans antialiased`}>
         <PatientProvider>
-          {children}
+          <ConfigurationProvider>
+            {children}
+          </ConfigurationProvider>
         </PatientProvider>
         <Analytics />
       </body>

@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,27 +12,21 @@ import {
   Info,
   Salad,
   BedDouble,
-  Bot
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { PrediccionResponse } from "@/interfaz/consulta"
-import { consultaService } from "@/servicios/consultaService"
 
-type RiskLevel = "low" | "moderate" | "high" | "very-high"
+type BackendRisk = "NINGUNO" | "BAJO" | "MEDIO" | "ALTO"
 
 interface RecommendationsCardProps {
-  riskLevel: RiskLevel
-  consultationId?: string
-  mlData?: {
-    riesgo: string;
-    riesgo_ml: string;
-    confianza_ml: number;
-    score_total: number;
-  }
+  riesgo: string
+  interpretation?: string | null
+  isLoadingInterpretation?: boolean
+  onGeneratePrediction?: () => void
+  canGeneratePrediction?: boolean
 }
 
 const recommendationsByRisk = {
-  low: [
+  NINGUNO: [
     {
       icon: Activity,
       title: "Monitoreo de presion arterial",
@@ -50,7 +43,7 @@ const recommendationsByRisk = {
       description: "Mantener alimentacion balanceada y actividad fisica moderada.",
     },
   ],
-  moderate: [
+  BAJO: [
     {
       icon: HeartPulse,
       title: "Monitoreo intensificado",
@@ -72,7 +65,7 @@ const recommendationsByRisk = {
       description: "Reportar cualquier sintoma inusual: dolor de cabeza, vision borrosa.",
     },
   ],
-  high: [
+  MEDIO: [
     {
       icon: HeartPulse,
       title: "Monitoreo diario de presion",
@@ -94,7 +87,7 @@ const recommendationsByRisk = {
       description: "Programar evaluaciones semanales con el equipo medico.",
     },
   ],
-  "very-high": [
+  ALTO: [
     {
       icon: HeartPulse,
       title: "Monitoreo continuo",
@@ -119,22 +112,22 @@ const recommendationsByRisk = {
 }
 
 const riskStyles = {
-  low: {
+  NINGUNO: {
+    badge: "bg-muted/30 text-muted-foreground border-muted",
+    iconBg: "bg-muted/20",
+    iconColor: "text-muted-foreground",
+  },
+  BAJO: {
     badge: "bg-risk-low/10 text-risk-low border-risk-low",
     iconBg: "bg-risk-low/10",
     iconColor: "text-risk-low",
   },
-  moderate: {
+  MEDIO: {
     badge: "bg-risk-moderate/10 text-risk-moderate border-risk-moderate",
     iconBg: "bg-risk-moderate/10",
     iconColor: "text-risk-moderate",
   },
-  high: {
-    badge: "bg-risk-high/10 text-risk-high border-risk-high",
-    iconBg: "bg-risk-high/10",
-    iconColor: "text-risk-high",
-  },
-  "very-high": {
+  ALTO: {
     badge: "bg-risk-high/15 text-risk-high border-risk-high",
     iconBg: "bg-risk-high/15",
     iconColor: "text-risk-high",
@@ -142,44 +135,37 @@ const riskStyles = {
 }
 
 const riskLabels = {
-  low: "Bajo",
-  moderate: "Medio",
-  high: "Alto",
-  "very-high": "Muy Alto",
+  NINGUNO: "Ninguno",
+  BAJO: "Bajo",
+  MEDIO: "Medio",
+  ALTO: "Alto",
 }
 
-const getRiskLevelFromML = (riesgo: string): RiskLevel => {
-  switch (riesgo.toLowerCase()) {
-    case 'bajo': return 'low';
-    case 'medio': return 'moderate';
-    case 'alto': return 'high';
-    default: return 'low';
+const normalizeBackendRisk = (riesgo: string): BackendRisk => {
+  switch ((riesgo || "NINGUNO").toUpperCase()) {
+    case "BAJO":
+      return "BAJO"
+    case "MEDIO":
+      return "MEDIO"
+    case "ALTO":
+      return "ALTO"
+    case "NINGUNO":
+    default:
+      return "NINGUNO"
   }
-};
+}
 
-export function RecommendationsCard({ riskLevel, consultationId, mlData }: RecommendationsCardProps) {
-  const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
-  const [loading, setLoading] = useState(false)
+export function RecommendationsCard({
+  riesgo,
+  interpretation,
+  isLoadingInterpretation = false,
+  onGeneratePrediction,
+  canGeneratePrediction = false,
+}: RecommendationsCardProps) {
+  const currentRisk = normalizeBackendRisk(riesgo)
 
-  // Use ML data if available, otherwise use the provided riskLevel
-  const currentRiskLevel = mlData ? getRiskLevelFromML(mlData.riesgo) : riskLevel
-
-  const handleGenerateAI = async () => {
-    if (!consultationId) return
-
-    setLoading(true)
-    try {
-      const pred = await consultaService.obtenerPrediccion(parseInt(consultationId))
-      setPrediction(pred)
-    } catch (error) {
-      console.error('Error fetching prediction:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const recommendations = recommendationsByRisk[currentRiskLevel]
-  const styles = riskStyles[currentRiskLevel]
+  const recommendations = recommendationsByRisk[currentRisk]
+  const styles = riskStyles[currentRisk]
 
   return (
     <Card className="border-border/50 shadow-sm">
@@ -188,78 +174,62 @@ export function RecommendationsCard({ riskLevel, consultationId, mlData }: Recom
           <CardTitle className="flex items-center gap-2 text-base font-semibold flex-wrap">
             <Sparkles className="h-4 w-4 text-primary flex-shrink-0" />
             <span>Recomendaciones</span>
-            <Badge variant="secondary" className="text-xs font-normal gap-1">
-              <Sparkles className="h-3 w-3" />
-              IA
-            </Badge>
           </CardTitle>
           <Badge variant="outline" className={cn("text-xs flex-shrink-0", styles.badge)}>
-            {riskLabels[currentRiskLevel]}
+            {riskLabels[currentRisk]}
           </Badge>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Generado por IA (Gemini)
-        </p>
+        <p className="text-xs text-muted-foreground mt-1">Sugerencias segun nivel de riesgo clinico</p>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-3 w-full"
+          onClick={onGeneratePrediction}
+          disabled={!canGeneratePrediction || isLoadingInterpretation}
+        >
+          {isLoadingInterpretation
+            ? "Generando analisis clinico..."
+            : canGeneratePrediction
+              ? "Prediccion Consulta"
+              : "Prediccion ya generada"}
+        </Button>
       </CardHeader>
       <CardContent>
-        {prediction ? (
-          <div className="space-y-4">
-            <div className="text-sm text-foreground leading-relaxed max-h-96 overflow-y-auto whitespace-pre-wrap">
-              {prediction.interpretacion}
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setPrediction(null)}
-              className="w-full"
-            >
-              <Bot className="h-4 w-4 mr-2" />
-              Ocultar Análisis IA
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {recommendations.map((rec, index) => {
-              const Icon = rec.icon
-              return (
-                <div key={index} className="flex gap-3">
-                  <div className={cn("p-2 rounded-lg h-fit", styles.iconBg)}>
-                    <Icon className={cn("h-4 w-4", styles.iconColor)} />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium text-sm">{rec.title}</h4>
-                    <p className="text-sm text-muted-foreground mt-0.5">{rec.description}</p>
-                  </div>
-                </div>
-              )
-            })}
-            
-            {consultationId && (
-              <div className="pt-4 border-t">
-                <Button 
-                  onClick={handleGenerateAI} 
-                  disabled={loading}
-                  className="w-full gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Generando...
-                    </>
-                  ) : (
-                    <>
-                      <Bot className="h-4 w-4" />
-                      Generar Análisis con IA
-                    </>
-                  )}
-                </Button>
-                <p className="text-xs text-muted-foreground mt-2 text-center">
-                  Obtén recomendaciones personalizadas con Gemini AI
-                </p>
-              </div>
-            )}
+        {isLoadingInterpretation && (
+          <div className="mb-4 rounded-lg border border-primary/25 bg-primary/5 p-3">
+            <p className="text-sm text-primary animate-pulse">Generando analisis clinico...</p>
           </div>
         )}
+
+        {interpretation && !isLoadingInterpretation && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <p className="text-xs text-primary font-semibold mb-1">Interpretacion clinica</p>
+              <div className="text-sm text-foreground leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
+                {interpretation}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-4 mt-4">
+          {recommendations.map((rec, index) => {
+            const Icon = rec.icon
+            return (
+              <div key={index} className="flex gap-3">
+                <div className={cn("p-2 rounded-lg h-fit", styles.iconBg)}>
+                  <Icon className={cn("h-4 w-4", styles.iconColor)} />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-medium text-sm">{rec.title}</h4>
+                  <p className="text-sm text-muted-foreground mt-0.5">{rec.description}</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
 
         {/* Disclaimer */}
         <div className="mt-6 p-4 rounded-lg bg-primary/5 border border-primary/20">

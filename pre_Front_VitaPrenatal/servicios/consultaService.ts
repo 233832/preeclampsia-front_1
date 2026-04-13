@@ -1,34 +1,41 @@
 import { Consulta, PrediccionResponse } from '../interfaz/consulta';
-
-const API_URL = "http://127.0.0.1:8000"; // Asegúrate que coincida con tu puerto de FastAPI
+import { buildApiUrl, fetchApi } from './apiClient';
 
 export const consultaService = {
     // Crear una nueva consulta
     crear: async (datos: Consulta): Promise<any> => {
-        const response = await fetch(`${API_URL}/api/consultas/`, {
+        const response = await fetchApi('/api/consultas/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(datos),
         });
-        if (!response.ok) throw new Error('Error al guardar consulta');
+        if (!response.ok) throw new Error(`Error al guardar consulta: ${response.status} ${response.statusText} (${response.url})`);
         return await response.json();
     },
 
     // Obtener lista de consultas
     listar: async (skip: number = 0, limit: number = 100): Promise<Consulta[]> => {
-        const response = await fetch(`${API_URL}/api/consultas/?skip=${skip}&limit=${limit}`);
-        if (!response.ok) throw new Error('Error al obtener consultas');
+        const response = await fetchApi(`/api/consultas/?skip=${skip}&limit=${limit}`);
+        if (!response.ok) throw new Error(`Error al obtener consultas: ${response.status} ${response.statusText} (${response.url})`);
         const data = await response.json();
         console.log("🌐 RESPUESTA BRUTA DEL API /api/consultas/:", data);
         return data;
     },
 
+    // Obtener detalles de una consulta por ID
+    obtenerPorId: async (id: number): Promise<Consulta> => {
+        const response = await fetchApi(`/api/consultas/${id}`);
+        if (!response.ok) throw new Error(`Error al obtener consulta por ID: ${response.status} ${response.statusText} (${response.url})`);
+        return await response.json();
+    },
+
+
     // Obtener predicción de una consulta
     obtenerPrediccion: async (id: number): Promise<PrediccionResponse> => {
-        const url = `${API_URL}/api/consultas/${id}/prediccion`;
+        const url = buildApiUrl(`/api/consultas/${id}/prediccion`);
         console.log(`🧪 consultaService.obtenerPrediccion -> solicitando ${url}`);
 
-        const response = await fetch(url);
+        const response = await fetchApi(`/api/consultas/${id}/prediccion`);
 
         if (!response.ok) {
             const bodyText = await response.text();
@@ -40,5 +47,57 @@ export const consultaService = {
         const data = await response.json();
         console.log("✅ consultaService.obtenerPrediccion respuesta JSON:", data);
         return data;
+    },
+
+    obtenerUrlReportePdf: (idConsulta: number): string => {
+        if (!Number.isFinite(idConsulta) || idConsulta <= 0) {
+            throw new Error('ID de consulta invalido para generar URL del reporte.');
+        }
+
+        return buildApiUrl(`/api/reportes/${idConsulta}`);
+    },
+
+    // Descargar reporte PDF de una consulta
+    descargarReportePdf: async (idConsulta: number): Promise<void> => {
+        if (!Number.isFinite(idConsulta) || idConsulta <= 0) {
+            throw new Error("ID de consulta inválido para descargar reporte.");
+        }
+
+        const response = await fetchApi(`/api/reportes/${idConsulta}`, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/pdf',
+            },
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(
+                `Error al descargar reporte PDF: ${response.status} ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`,
+            );
+        }
+
+        const pdfBlob = await response.blob();
+
+        if (pdfBlob.size === 0) {
+            throw new Error('El reporte PDF llegó vacío.');
+        }
+
+        if (typeof window === 'undefined') {
+            throw new Error('La descarga de PDF solo está disponible en el navegador.');
+        }
+
+        const objectUrl = window.URL.createObjectURL(pdfBlob);
+
+        try {
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = `reporte_${idConsulta}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } finally {
+            window.URL.revokeObjectURL(objectUrl);
+        }
     }
 };

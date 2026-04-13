@@ -5,50 +5,48 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { ClipboardList, Calendar, Clock, Activity, Plus, Check } from "lucide-react"
+import { ClipboardList, Calendar, Clock, Plus, Check, FileDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatDateInMexico, getDateTimeSortKey } from "@/lib/mexico-time"
 
 interface ConsultationHistoryCardProps {
   consultations: Consultation[]
   selectedConsultationId: string | null
   onSelectConsultation: (consultation: Consultation) => void
   onNewConsultation: () => void
+  onDownloadConsultationReport: (consultationId: string) => void
+  downloadingConsultationId?: string | null
 }
 
 const riskConfig: Record<RiskLevel, { label: string; shortLabel: string; bgColor: string; textColor: string }> = {
   none: {
-    label: "Ninguno (0%)",
-    shortLabel: "0%",
+    label: "Ninguno",
+    shortLabel: "Ninguno",
     bgColor: "bg-muted",
     textColor: "text-muted-foreground",
   },
   low: {
-    label: "Bajo (33.3%)",
-    shortLabel: "33.3%",
+    label: "Bajo",
+    shortLabel: "Bajo",
     bgColor: "bg-risk-low/15",
     textColor: "text-risk-low",
   },
   moderate: {
-    label: "Medio (66.6%)",
-    shortLabel: "66.6%",
+    label: "Medio",
+    shortLabel: "Medio",
     bgColor: "bg-risk-moderate/15",
     textColor: "text-risk-moderate",
   },
   high: {
-    label: "Alto (99.9%)",
-    shortLabel: "99.9%",
+    label: "Alto",
+    shortLabel: "Alto",
     bgColor: "bg-risk-high/15",
     textColor: "text-risk-high",
   },
 }
 
 function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString("es-MX", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  })
+  return formatDateInMexico(dateString)
 }
 
 export function ConsultationHistoryCard({
@@ -56,12 +54,12 @@ export function ConsultationHistoryCard({
   selectedConsultationId,
   onSelectConsultation,
   onNewConsultation,
+  onDownloadConsultationReport,
+  downloadingConsultationId,
 }: ConsultationHistoryCardProps) {
   // Sort consultations by date (most recent first)
   const sortedConsultations = [...consultations].sort((a, b) => {
-    const dateA = new Date(`${a.date}T${a.time}`)
-    const dateB = new Date(`${b.date}T${b.time}`)
-    return dateB.getTime() - dateA.getTime()
+    return getDateTimeSortKey(b.date, b.time).localeCompare(getDateTimeSortKey(a.date, a.time))
   })
 
   return (
@@ -75,10 +73,12 @@ export function ConsultationHistoryCard({
               {consultations.length}
             </Badge>
           </CardTitle>
-          <Button size="sm" onClick={onNewConsultation} className="h-8 gap-1">
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Nueva</span>
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" onClick={onNewConsultation} className="h-8 gap-1">
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Nueva</span>
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="pt-2">
@@ -88,11 +88,20 @@ export function ConsultationHistoryCard({
               const risk = riskConfig[consultation.riskLevel]
               const isSelected = consultation.id === selectedConsultationId
               const isLatest = index === 0
+              const isDownloadingCurrent = downloadingConsultationId === consultation.id
 
               return (
-                <button
+                <div
                   key={consultation.id}
                   onClick={() => onSelectConsultation(consultation)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault()
+                      onSelectConsultation(consultation)
+                    }
+                  }}
                   className={cn(
                     "w-full p-3 rounded-lg border text-left transition-all",
                     "hover:bg-muted/50 hover:border-primary/30",
@@ -146,7 +155,23 @@ export function ConsultationHistoryCard({
                       </Badge>
                     </div>
                   </div>
-                </button>
+
+                  <div className="mt-3 flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 gap-1 text-xs"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onDownloadConsultationReport(consultation.id)
+                      }}
+                      disabled={isDownloadingCurrent}
+                    >
+                      <FileDown className="h-3.5 w-3.5" />
+                      {isDownloadingCurrent ? "Abriendo..." : "Ver PDF"}
+                    </Button>
+                  </div>
+                </div>
               )
             })}
           </div>

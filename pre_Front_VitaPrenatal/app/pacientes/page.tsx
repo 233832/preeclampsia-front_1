@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { usePatients, Patient, Consultation } from "@/lib/patient-context"
+import { useConfiguration } from "@/lib/configuration-context"
 import { MainNav } from "@/components/navigation/main-nav"
 import { PatientsTable } from "@/components/patients/patients-table"
 import { PatientForm } from "@/components/patients/patient-form"
@@ -17,6 +18,7 @@ type PatientFormData = Omit<Patient, "id" | "consultations"> & {
 export default function PacientesPage() {
   const router = useRouter()
   const { patients, addPatient, updatePatient, deletePatient, selectPatient } = usePatients()
+  const { fetchNotificaciones } = useConfiguration()
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -39,8 +41,9 @@ export default function PacientesPage() {
     deletePatient(id)
   }
 
-  const handleSave = (patientData: PatientFormData) => {
-    addPatient(patientData)
+  const handleSave = async (patientData: PatientFormData) => {
+    await addPatient(patientData)
+    await fetchNotificaciones()
     setEditingPatient(null)
   }
 
