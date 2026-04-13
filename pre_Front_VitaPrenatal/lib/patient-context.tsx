@@ -5,6 +5,7 @@ import { pacienteService } from '@/servicios/pacienteService';
 import { expedienteService } from '@/servicios/expedienteService';
 import { consultaService } from '@/servicios/consultaService';
 import type { Consulta as ApiConsulta } from '@/interfaz/consulta';
+import { extractDateTimeInMexico, getDateTimeSortKey } from "@/lib/mexico-time"
 
 export type RiskLevel = "none" | "low" | "moderate" | "high"
 
@@ -27,6 +28,20 @@ type ApiConsultaConId = ApiConsulta & { id: number }
 
 function hasConsultaId(consulta: ApiConsulta): consulta is ApiConsultaConId {
   return typeof consulta.id === "number"
+}
+
+function getConsultationDateTimeFromApi(value: string): { date: string; time: string } {
+  const normalized = extractDateTimeInMexico(value)
+
+  if (normalized) {
+    return normalized
+  }
+
+  const [date = "", rawTime = "00:00"] = value.split("T")
+  return {
+    date,
+    time: rawTime.slice(0, 5),
+  }
 }
 
 export interface Consultation {
@@ -64,10 +79,9 @@ export interface Patient {
 // Helper to get latest consultation
 export function getLatestConsultation(patient: Patient): Consultation | null {
   if (patient.consultations.length === 0) return null
-  return patient.consultations.sort((a, b) => {
-    const dateA = new Date(`${a.date}T${a.time}`)
-    const dateB = new Date(`${b.date}T${b.time}`)
-    return dateB.getTime() - dateA.getTime()
+
+  return [...patient.consultations].sort((a, b) => {
+    return getDateTimeSortKey(b.date, b.time).localeCompare(getDateTimeSortKey(a.date, a.time))
   })[0]
 }
 
@@ -114,11 +128,12 @@ export function PatientProvider({ children }: { children: ReactNode }) {
           const consultasForExp = allConsultas
             .filter((c): c is ApiConsultaConId => c.expediente_id === exp.id && hasConsultaId(c))
             .map((c) => {
+              const { date, time } = getConsultationDateTimeFromApi(c.fecha_hora_consulta)
               console.log(`📋 Procesando consulta ID ${c.id}:`, { riesgo: c.riesgo, presion_sistolica: c.presion_sistolica, presion_diastolica: c.presion_diastolica, imc: c.imc });
               return {
                 id: c.id.toString(),
-                date: c.fecha_hora_consulta.split('T')[0],
-                time: c.fecha_hora_consulta.split('T')[1].slice(0,5),
+                date,
+                time,
                 gestationalWeek: c.edad_gestacional,
                 weight: c.peso,
                 height: c.altura,
@@ -209,22 +224,26 @@ export function PatientProvider({ children }: { children: ReactNode }) {
         const paciente = await pacienteService.obtenerPorId(exp.paciente_id);
         const consultasForExp = allConsultas
           .filter((c): c is ApiConsultaConId => c.expediente_id === exp.id && hasConsultaId(c))
-          .map((c) => ({
-            id: c.id.toString(),
-            date: c.fecha_hora_consulta.split('T')[0],
-            time: c.fecha_hora_consulta.split('T')[1].slice(0,5),
-            gestationalWeek: c.edad_gestacional,
-            weight: c.peso,
-            height: c.altura,
-            bmi: c.imc,
-            systolic: c.presion_sistolica,
-            diastolic: c.presion_diastolica,
-            previousHypertension: paciente.hipertension_previa,
-            diabetes: paciente.diabetes,
-            familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
-            riskLevel: mapApiRisk(c.riesgo || "NINGUNO"),
-            riskProbability: 0,
-          }));
+          .map((c) => {
+            const { date, time } = getConsultationDateTimeFromApi(c.fecha_hora_consulta)
+
+            return {
+              id: c.id.toString(),
+              date,
+              time,
+              gestationalWeek: c.edad_gestacional,
+              weight: c.peso,
+              height: c.altura,
+              bmi: c.imc,
+              systolic: c.presion_sistolica,
+              diastolic: c.presion_diastolica,
+              previousHypertension: paciente.hipertension_previa,
+              diabetes: paciente.diabetes,
+              familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
+              riskLevel: mapApiRisk(c.riesgo || "NINGUNO"),
+              riskProbability: 0,
+            }
+          });
         const patient: Patient = {
           id: exp.id.toString(),
           name: paciente.nombre,
@@ -311,22 +330,26 @@ export function PatientProvider({ children }: { children: ReactNode }) {
       const allConsultas = await consultaService.listar();
       const consultasForExp = allConsultas
         .filter((c): c is ApiConsultaConId => c.expediente_id === expedienteId && hasConsultaId(c))
-        .map((c) => ({
-          id: c.id.toString(),
-          date: c.fecha_hora_consulta.split('T')[0],
-          time: c.fecha_hora_consulta.split('T')[1].slice(0,5),
-          gestationalWeek: c.edad_gestacional,
-          weight: c.peso,
-          height: c.altura,
-          bmi: c.imc,
-          systolic: c.presion_sistolica,
-          diastolic: c.presion_diastolica,
-          previousHypertension: patient.previousHypertension,
-          diabetes: patient.diabetes,
-          familyHypertensionHistory: patient.familyHypertensionHistory,
-          riskLevel: mapApiRisk(c.riesgo || "NINGUNO"),
-          riskProbability: 0,
-        }));
+        .map((c) => {
+          const { date, time } = getConsultationDateTimeFromApi(c.fecha_hora_consulta)
+
+          return {
+            id: c.id.toString(),
+            date,
+            time,
+            gestationalWeek: c.edad_gestacional,
+            weight: c.peso,
+            height: c.altura,
+            bmi: c.imc,
+            systolic: c.presion_sistolica,
+            diastolic: c.presion_diastolica,
+            previousHypertension: patient.previousHypertension,
+            diabetes: patient.diabetes,
+            familyHypertensionHistory: patient.familyHypertensionHistory,
+            riskLevel: mapApiRisk(c.riesgo || "NINGUNO"),
+            riskProbability: 0,
+          }
+        });
       
       setPatients(prev => prev.map(p => p.id === patientId ? { ...p, consultations: consultasForExp } : p));
       

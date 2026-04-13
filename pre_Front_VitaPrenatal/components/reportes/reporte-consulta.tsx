@@ -17,6 +17,7 @@ import { pacienteService } from "@/servicios/pacienteService"
 import { reporteService } from "@/servicios/reporteService"
 import type { Consulta } from "@/interfaz/consulta"
 import type { PacienteResponse } from "@/interfaz/paciente"
+import { formatDateTimeInMexico } from "@/lib/mexico-time"
 
 type ReportAction = "preview" | "pdf" | null
 
@@ -56,19 +57,13 @@ function formatDateTime(value: unknown): string {
     return "No registrado"
   }
 
-  const parsedDate = new Date(value)
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return "No registrado"
-  }
-
-  return parsedDate.toLocaleString("es-MX", {
+  return formatDateTimeInMexico(value, {
     day: "2-digit",
     month: "long",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  })
+  }, "No registrado")
 }
 
 function formatPressure(sistolica: unknown, diastolica: unknown): string {

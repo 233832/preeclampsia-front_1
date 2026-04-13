@@ -11,21 +11,41 @@ interface BloodPressureInputCardProps {
   diastolic: number
   onSystolicChange: (value: number) => void
   onDiastolicChange: (value: number) => void
+  hypertensionSystolicThreshold?: number
+  hypertensionDiastolicThreshold?: number
 }
 
 type BPClassification = "normal" | "elevated" | "hypertension"
 
-function classifyBloodPressure(systolic: number, diastolic: number): BPClassification {
-  if (systolic >= 130 || diastolic >= 80) {
+function classifyBloodPressure(
+  systolic: number,
+  diastolic: number,
+  hypertensionSystolicThreshold: number,
+  hypertensionDiastolicThreshold: number,
+): BPClassification {
+  if (systolic >= hypertensionSystolicThreshold || diastolic >= hypertensionDiastolicThreshold) {
     return "hypertension"
   }
-  if (systolic >= 120 && systolic <= 129 && diastolic < 80) {
+
+  if (systolic >= 120 || diastolic >= 80) {
     return "elevated"
   }
+
   return "normal"
 }
 
-const classificationConfig = {
+function getRangeDescription(min: number, threshold: number): string {
+  const upper = threshold - 1
+
+  if (upper < min) {
+    return `< ${threshold}`
+  }
+
+  return `${min}-${upper}`
+}
+
+function buildClassificationConfig(hypertensionSystolicThreshold: number, hypertensionDiastolicThreshold: number) {
+  return {
   normal: {
     label: "Normal",
     description: "< 120 / < 80 mmHg",
@@ -35,18 +55,19 @@ const classificationConfig = {
   },
   elevated: {
     label: "Elevada",
-    description: "120-129 / < 80 mmHg",
+    description: `${getRangeDescription(120, hypertensionSystolicThreshold)} / ${getRangeDescription(80, hypertensionDiastolicThreshold)} mmHg`,
     bgColor: "bg-risk-moderate/10",
     textColor: "text-risk-moderate",
     borderColor: "border-risk-moderate",
   },
   hypertension: {
     label: "Hipertension",
-    description: ">= 130 / >= 80 mmHg",
+    description: `>= ${hypertensionSystolicThreshold} / >= ${hypertensionDiastolicThreshold} mmHg`,
     bgColor: "bg-risk-high/10",
     textColor: "text-risk-high",
     borderColor: "border-risk-high",
   },
+}
 }
 
 export function BloodPressureInputCard({
@@ -54,8 +75,19 @@ export function BloodPressureInputCard({
   diastolic,
   onSystolicChange,
   onDiastolicChange,
+  hypertensionSystolicThreshold = 140,
+  hypertensionDiastolicThreshold = 90,
 }: BloodPressureInputCardProps) {
-  const classification = classifyBloodPressure(systolic, diastolic)
+  const classification = classifyBloodPressure(
+    systolic,
+    diastolic,
+    hypertensionSystolicThreshold,
+    hypertensionDiastolicThreshold,
+  )
+  const classificationConfig = buildClassificationConfig(
+    hypertensionSystolicThreshold,
+    hypertensionDiastolicThreshold,
+  )
   const config = classificationConfig[classification]
 
   return (

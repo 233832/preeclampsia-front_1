@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ClipboardList, Calendar, Clock, Plus, Check, FileDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatDateInMexico, getDateTimeSortKey } from "@/lib/mexico-time"
 
 interface ConsultationHistoryCardProps {
   consultations: Consultation[]
@@ -45,12 +46,7 @@ const riskConfig: Record<RiskLevel, { label: string; shortLabel: string; bgColor
 }
 
 function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString("es-MX", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  })
+  return formatDateInMexico(dateString)
 }
 
 export function ConsultationHistoryCard({
@@ -63,9 +59,7 @@ export function ConsultationHistoryCard({
 }: ConsultationHistoryCardProps) {
   // Sort consultations by date (most recent first)
   const sortedConsultations = [...consultations].sort((a, b) => {
-    const dateA = new Date(`${a.date}T${a.time}`)
-    const dateB = new Date(`${b.date}T${b.time}`)
-    return dateB.getTime() - dateA.getTime()
+    return getDateTimeSortKey(b.date, b.time).localeCompare(getDateTimeSortKey(a.date, a.time))
   })
 
   return (

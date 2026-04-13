@@ -21,6 +21,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/toaster"
 import { toast } from "@/hooks/use-toast"
+import {
+  extractDateTimeInMexico,
+  getCurrentMexicoDateTimeLabel,
+  getDateTimeSortKey,
+} from "@/lib/mexico-time"
 import { Users, ArrowRight } from "lucide-react"
 import Link from "next/link"
 
@@ -78,9 +83,7 @@ function buildPredictionFromConsulta(consulta: ApiConsulta, fallbackConsultaId: 
 // Generate BP history data from consultations
 function generateBPHistoryFromConsultations(consultations: Consultation[], type: "systolic" | "diastolic") {
   const sorted = [...consultations].sort((a, b) => {
-    const dateA = new Date(`${a.date}T${a.time}`)
-    const dateB = new Date(`${b.date}T${b.time}`)
-    return dateA.getTime() - dateB.getTime()
+    return getDateTimeSortKey(a.date, a.time).localeCompare(getDateTimeSortKey(b.date, b.time))
   })
 
   return sorted.map((c) => ({
@@ -91,13 +94,13 @@ function generateBPHistoryFromConsultations(consultations: Consultation[], type:
 
 export default function VitaPrenatalMonitoreoClinico() {
   const { 
-    selectedPatient, 
-    selectedConsultation, 
-    selectConsultation, 
+    selectedPatient,
+    selectedConsultation,
+    selectConsultation,
     addConsultation,
-    updateConsultation
+    updateConsultation,
   } = usePatients()
-  const { fetchNotificaciones } = useConfiguration()
+  const { fetchNotificaciones, configuraciones } = useConfiguration()
   
   const [systolic, setSystolic] = useState(120)
   const [diastolic, setDiastolic] = useState(80)
@@ -108,7 +111,7 @@ export default function VitaPrenatalMonitoreoClinico() {
   const [consultationDetails, setConsultationDetails] = useState<ApiConsulta | null>(null)
   const [predictionLoading, setPredictionLoading] = useState(false)
   const [openingPdfConsultationId, setOpeningPdfConsultationId] = useState<string | null>(null)
-  const [lastUpdated, setLastUpdated] = useState(() => new Date().toLocaleString())
+  const [lastUpdated, setLastUpdated] = useState(() => getCurrentMexicoDateTimeLabel())
   const latestConsultationRequestId = useRef(0)
 
   const syncConsultationInContext = (consultationId: string, consultationFromApi: ApiConsulta) => {
@@ -116,11 +119,15 @@ export default function VitaPrenatalMonitoreoClinico() {
       return
     }
 
-    const [date, rawTime = "00:00"] = consultationFromApi.fecha_hora_consulta.split("T")
+    const fallbackDate = consultationFromApi.fecha_hora_consulta.split("T")[0]
+    const fallbackRawTime = consultationFromApi.fecha_hora_consulta.split("T")[1] ?? "00:00"
+    const mexicoDateTime = extractDateTimeInMexico(consultationFromApi.fecha_hora_consulta)
+    const date = mexicoDateTime?.date ?? fallbackDate
+    const time = mexicoDateTime?.time ?? fallbackRawTime.slice(0, 5)
 
     updateConsultation(selectedPatient.id, consultationId, {
       date,
-      time: rawTime.slice(0, 5),
+      time,
       gestationalWeek: consultationFromApi.edad_gestacional,
       weight: consultationFromApi.peso,
       height: consultationFromApi.altura,
@@ -216,7 +223,7 @@ export default function VitaPrenatalMonitoreoClinico() {
 
       await loadConsultationClinicalData(consultation.id)
       await fetchNotificaciones()
-      setLastUpdated(new Date().toLocaleString())
+      setLastUpdated(getCurrentMexicoDateTimeLabel())
     } catch (error) {
       console.error("Error:", error)
     }
@@ -489,6 +496,8 @@ export default function VitaPrenatalMonitoreoClinico() {
               diastolic={diastolic}
               onSystolicChange={handleSystolicChange}
               onDiastolicChange={handleDiastolicChange}
+              hypertensionSystolicThreshold={configuraciones.umbralSistolico}
+              hypertensionDiastolicThreshold={configuraciones.umbralDiastolico}
             />
             
             {/* Blood Pressure Charts */}

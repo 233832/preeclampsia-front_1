@@ -9,6 +9,7 @@ import { MessageSquare, Save, Trash2, Loader2, PencilLine, X } from "lucide-reac
 import { notaService } from "@/servicios/notaService"
 import { NotaClinica } from "@/interfaz/nota"
 import { toast } from "@/hooks/use-toast"
+import { formatDateTimeInMexico, getMexicoDateTimeSortValue } from "@/lib/mexico-time"
 
 interface PatientNotesCardProps {
   consultationId?: string
@@ -25,19 +26,15 @@ function parseConsultationId(value?: string): number | null {
 }
 
 function formatNoteDate(value: string): string {
-  const parsedDate = new Date(value)
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return "Fecha no disponible"
-  }
-
-  return parsedDate.toLocaleString("es-MX", {
+  return formatDateTimeInMexico(value, {
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  })
+    second: "2-digit",
+    hour12: false,
+  }, "Fecha no disponible")
 }
 
 export function PatientNotesCard({ consultationId, patientId }: PatientNotesCardProps) {
@@ -63,8 +60,8 @@ export function PatientNotesCard({ consultationId, patientId }: PatientNotesCard
     try {
       const result = await notaService.listarPorConsulta(consultaId)
       const sorted = [...result].sort((a, b) => {
-        const dateA = new Date(a.fecha_creacion).getTime()
-        const dateB = new Date(b.fecha_creacion).getTime()
+        const dateA = getMexicoDateTimeSortValue(a.fecha_creacion)
+        const dateB = getMexicoDateTimeSortValue(b.fecha_creacion)
         return dateB - dateA
       })
 

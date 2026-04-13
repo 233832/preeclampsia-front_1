@@ -9,6 +9,7 @@ import {
 } from "@/interfaz/configuracion"
 import { getConfiguraciones, updateConfiguraciones } from "@/servicios/configuracionService"
 import { notificacionService } from "@/servicios/notificacionService"
+import { formatDateTimeInMexico } from "@/lib/mexico-time"
 
 export const defaultConfiguraciones: ConfiguracionesClinicas = {
   umbralSistolico: 140,
@@ -51,16 +52,6 @@ function mapTipoNotificacion(value: unknown): TipoNotificacion {
 
   return "informativa"
 }
-
-const notificationDateFormatter = new Intl.DateTimeFormat("es-MX", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hour12: false,
-})
 
 function firstNonEmptyString(values: unknown[]): string | null {
   for (const value of values) {
@@ -116,25 +107,26 @@ function extractPacienteNombre(item: Record<string, unknown>): string {
 }
 
 function formatFechaNotificacion(value: unknown): string {
-  if (value instanceof Date) {
-    if (!Number.isNaN(value.getTime())) {
-      return notificationDateFormatter.format(value)
-    }
+  const dateFormatOptions: Intl.DateTimeFormatOptions = {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
   }
 
-  if (typeof value === "string" || typeof value === "number") {
-    const parsed = new Date(value)
-
-    if (!Number.isNaN(parsed.getTime())) {
-      return notificationDateFormatter.format(parsed)
-    }
-
-    if (typeof value === "string" && value.trim()) {
-      return value.trim()
-    }
+  const formattedValue = formatDateTimeInMexico(value, dateFormatOptions, "")
+  if (formattedValue) {
+    return formattedValue
   }
 
-  return notificationDateFormatter.format(new Date())
+  if (typeof value === "string" && value.trim()) {
+    return value.trim()
+  }
+
+  return formatDateTimeInMexico(new Date(), dateFormatOptions, "")
 }
 
 function normalizeNotificaciones(payload: unknown): NotificacionClinica[] {
@@ -175,7 +167,7 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
 
   const fetchNotificaciones = useCallback(async () => {
     try {
-      const data = await notificacionService.getNotificaciones()
+      const data = await notificacionService.getNotificacionesNoLeidas()
       setNotifications(normalizeNotificaciones(data))
     } catch (error) {
       console.warn("No se pudieron actualizar las notificaciones desde backend", error)
@@ -240,31 +232,27 @@ export function ConfigurationProvider({ children }: { children: ReactNode }) {
   }
 
   const marcarTodasLeidas = async () => {
-    const idsPendientes = notifications.filter((item) => !item.leida).map((item) => item.id)
+    const idsPendientes = notifications.map((item) => item.id)
 
     if (idsPendientes.length === 0) {
       return
     }
 
-    setNotifications((prev) => prev.map((item) => ({ ...item, leida: true })))
-
     try {
       await Promise.all(idsPendientes.map((id) => notificacionService.marcarComoLeida(id)))
     } catch (error) {
       console.warn("No se pudieron marcar todas las notificaciones como leídas", error)
+    } finally {
       await fetchNotificaciones()
     }
   }
 
   const marcarNotificacionLeida = async (id: number) => {
-    setNotifications((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, leida: true } : item)),
-    )
-
     try {
       await notificacionService.marcarComoLeida(id)
     } catch (error) {
       console.warn("No se pudo marcar la notificación como leída", error)
+    } finally {
       await fetchNotificaciones()
     }
   }

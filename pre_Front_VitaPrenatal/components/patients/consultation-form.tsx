@@ -16,6 +16,7 @@ import {
 import { Patient, Consultation } from "@/lib/patient-context"
 import { Activity, Calendar, Scale } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getCurrentMexicoDate, getCurrentMexicoTime, getDateTimeSortKey } from "@/lib/mexico-time"
 
 interface ConsultationFormProps {
   open: boolean
@@ -27,12 +28,13 @@ interface ConsultationFormProps {
 export function ConsultationForm({ open, onClose, patient, onSave }: ConsultationFormProps) {
   // Get the latest consultation to pre-fill some values
   const latestConsultation = patient.consultations.length > 0
-    ? patient.consultations.sort((a, b) => {
-        const dateA = new Date(`${a.date}T${a.time}`)
-        const dateB = new Date(`${b.date}T${b.time}`)
-        return dateB.getTime() - dateA.getTime()
+    ? [...patient.consultations].sort((a, b) => {
+        return getDateTimeSortKey(b.date, b.time).localeCompare(getDateTimeSortKey(a.date, a.time))
       })[0]
     : null
+
+  const currentMexicoDate = getCurrentMexicoDate()
+  const currentMexicoTime = getCurrentMexicoTime()
 
   const [formData, setFormData] = useState({
     gestationalWeek: latestConsultation ? latestConsultation.gestationalWeek + 2 : 12,
@@ -43,8 +45,8 @@ export function ConsultationForm({ open, onClose, patient, onSave }: Consultatio
     previousHypertension: patient.previousHypertension,
     diabetes: patient.diabetes,
     familyHypertensionHistory: patient.familyHypertensionHistory,
-    date: new Date().toISOString().split("T")[0],
-    time: new Date().toTimeString().slice(0, 5),
+    date: currentMexicoDate,
+    time: currentMexicoTime,
   })
 
   useEffect(() => {
@@ -58,8 +60,8 @@ export function ConsultationForm({ open, onClose, patient, onSave }: Consultatio
         previousHypertension: patient.previousHypertension,
         diabetes: patient.diabetes,
         familyHypertensionHistory: patient.familyHypertensionHistory,
-        date: new Date().toISOString().split("T")[0],
-        time: new Date().toTimeString().slice(0, 5),
+        date: getCurrentMexicoDate(),
+        time: getCurrentMexicoTime(),
       })
     }
   }, [open, latestConsultation, patient])

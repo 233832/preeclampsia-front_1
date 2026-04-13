@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { consultaService } from "@/servicios/consultaService";
 import { Consulta } from "@/interfaz/consulta";
+import { getCurrentMexicoIsoDateTime } from "@/lib/mexico-time"
 
 export default function NuevaConsulta() {
   // 1. Estado para los datos del formulario (el molde de la interfaz)
   const [datosForm, setDatosForm] = useState<Consulta>({
     paciente_id: 1, // Estos IDs normalmente vienen de una selección previa
     expediente_id: 1,
-    fecha_hora_consulta: new Date().toISOString(),
+    fecha_hora_consulta: getCurrentMexicoIsoDateTime(),
     edad_madre: 0,
     edad_gestacional: 0,
     altura: 0,

@@ -7,6 +7,9 @@ import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { useConfiguration } from "@/lib/configuration-context"
+import { notificacionService } from "@/servicios/notificacionService"
+import { formatDateTimeInMexico, getMexicoDateTimeSortValue } from "@/lib/mexico-time"
 
 interface Notificacion {
   id: number
@@ -19,8 +22,6 @@ interface Notificacion {
 }
 
 const TIPO_ORDEN: Array<Notificacion["tipo"]> = ["CRITICA", "ADVERTENCIA", "INFORMATIVA"]
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api"
-const API_NOTIFICACIONES_ENDPOINT = `${API_BASE_URL}/notificaciones`
 
 function normalizeTipo(tipo: string): "CRITICA" | "ADVERTENCIA" | "INFORMATIVA" {
   const value = tipo
@@ -55,15 +56,15 @@ function isLeida(estado: unknown, leida: unknown): boolean {
 }
 
 function formatFecha(fecha: string): string {
-  const parsed = new Date(fecha)
-
-  if (Number.isNaN(parsed.getTime())) {
-    return fecha
-  }
-
-  return new Date(fecha).toLocaleString("es-MX", {
-    timeZone: "America/Mexico_City",
-  })
+  return formatDateTimeInMexico(fecha, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }, fecha)
 }
 
 function parseNotificacion(raw: unknown, fallbackIndex: number): Notificacion {
@@ -115,13 +116,7 @@ function getStylesByType(tipo: Notificacion["tipo"]) {
 }
 
 function getFechaTimestamp(fecha: string): number {
-  const timestamp = new Date(fecha).getTime()
-
-  if (Number.isNaN(timestamp)) {
-    return 0
-  }
-
-  return timestamp
+  return getMexicoDateTimeSortValue(fecha)
 }
 
 interface NotificationCardProps {
@@ -144,11 +139,34 @@ function NotificationCard({
   onLeida,
 }: NotificationCardProps) {
   const tipoStyles = getStylesByType(tipo)
+  const canMarkAsRead = !leida && !updating
+
+  const handleCardClick = () => {
+    if (!canMarkAsRead) {
+      return
+    }
+
+    onLeida()
+  }
 
   return (
     <Card
+      onClick={handleCardClick}
+      role={canMarkAsRead ? "button" : undefined}
+      tabIndex={canMarkAsRead ? 0 : undefined}
+      onKeyDown={(event) => {
+        if (!canMarkAsRead) {
+          return
+        }
+
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          onLeida()
+        }
+      }}
       className={cn(
         "rounded-lg border border-border/70 border-l-8 shadow-sm",
+        canMarkAsRead && "cursor-pointer",
         leida
           ? "border-l-border bg-muted/15 opacity-50"
           : cn(tipoStyles.borderClass, tipoStyles.backgroundClass),
@@ -194,7 +212,10 @@ function NotificationCard({
           <Button
             size="sm"
             variant="outline"
-            onClick={onLeida}
+            onClick={(event) => {
+              event.stopPropagation()
+              onLeida()
+            }}
             disabled={leida || updating}
             className={cn(
               "h-8 shrink-0 rounded-md px-3 text-xs",
@@ -236,6 +257,7 @@ function NotificacionCardContainer({
 }
 
 export default function NotificacionesPage() {
+  const { fetchNotificaciones } = useConfiguration()
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -245,22 +267,13 @@ export default function NotificacionesPage() {
     setError("")
 
     try {
-      const response = await fetch(API_NOTIFICACIONES_ENDPOINT)
-
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`)
-      }
-
-      const payload = await response.json()
+      const payload = await notificacionService.getNotificaciones()
       const normalized = Array.isArray(payload)
         ? payload.map((item, index) => parseNotificacion(item, index))
         : []
 
       normalized.sort((a, b) => {
-        const first = new Date(a.fecha).getTime()
-        const second = new Date(b.fecha).getTime()
-
-        return second - first
+        return getFechaTimestamp(b.fecha) - getFechaTimestamp(a.fecha)
       })
 
       setNotificaciones(normalized)
@@ -282,29 +295,12 @@ export default function NotificacionesPage() {
     setError("")
 
     try {
-      const response = await fetch(`${API_NOTIFICACIONES_ENDPOINT}/${id}/leida`, {
-        method: "PUT",
-      })
-
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`)
-      }
-
-      setNotificaciones((prev) =>
-        prev.map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                leida: true,
-                estado: "LEÍDA",
-              }
-            : item,
-        ),
-      )
+      await notificacionService.marcarComoLeida(id)
     } catch (markError) {
       console.error("No se pudo marcar la notificación como leída", markError)
       setError("No fue posible marcar la notificación como leída.")
     } finally {
+      await Promise.all([cargarNotificaciones(), fetchNotificaciones()])
       setUpdatingId(null)
     }
   }

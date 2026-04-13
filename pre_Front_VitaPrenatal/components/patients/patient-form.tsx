@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Patient, Consultation, getLatestConsultation } from "@/lib/patient-context"
 import { User, MapPin, Phone, Calendar, Activity, Scale } from "lucide-react"
+import { getCurrentMexicoDate, getCurrentMexicoTime } from "@/lib/mexico-time"
 
 type PatientFormData = Omit<Patient, "id" | "consultations"> & {
   consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability">
@@ -38,6 +39,8 @@ const maritalStatusOptions = [
 
 export function PatientForm({ open, onClose, onSave, onUpdate, editingPatient }: PatientFormProps) {
   const latestConsultation = editingPatient ? getLatestConsultation(editingPatient) : null
+  const currentMexicoDate = getCurrentMexicoDate()
+  const currentMexicoTime = getCurrentMexicoTime()
 
   const [formData, setFormData] = useState({
     // Patient info
@@ -56,8 +59,8 @@ export function PatientForm({ open, onClose, onSave, onUpdate, editingPatient }:
     previousHypertension: false,
     diabetes: false,
     familyHypertensionHistory: false,
-    consultationDate: new Date().toISOString().split("T")[0],
-    consultationTime: "09:00",
+    consultationDate: currentMexicoDate,
+    consultationTime: currentMexicoTime,
   })
 
   useEffect(() => {
@@ -78,8 +81,8 @@ export function PatientForm({ open, onClose, onSave, onUpdate, editingPatient }:
         previousHypertension: latestConsultation?.previousHypertension ?? false,
         diabetes: latestConsultation?.diabetes ?? false,
         familyHypertensionHistory: latestConsultation?.familyHypertensionHistory ?? false,
-        consultationDate: latestConsultation?.date ?? new Date().toISOString().split("T")[0],
-        consultationTime: latestConsultation?.time ?? "09:00",
+        consultationDate: latestConsultation?.date ?? getCurrentMexicoDate(),
+        consultationTime: latestConsultation?.time ?? getCurrentMexicoTime(),
       })
     } else {
       // Reset form for new patient
@@ -98,8 +101,8 @@ export function PatientForm({ open, onClose, onSave, onUpdate, editingPatient }:
         previousHypertension: false,
         diabetes: false,
         familyHypertensionHistory: false,
-        consultationDate: new Date().toISOString().split("T")[0],
-        consultationTime: "09:00",
+        consultationDate: getCurrentMexicoDate(),
+        consultationTime: getCurrentMexicoTime(),
       })
     }
   }, [editingPatient, latestConsultation, open])

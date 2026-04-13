@@ -1,5 +1,6 @@
 import { CrearNotaPayload, NotaClinica } from '../interfaz/nota';
 import { fetchApi } from './apiClient';
+import { getCurrentMexicoIsoDateTime } from "@/lib/mexico-time"
 
 type NotaApi = Record<string, unknown>;
 
@@ -15,7 +16,7 @@ function asPositiveInteger(value: unknown): number | null {
 
 function asDateString(value: unknown): string {
     if (typeof value !== 'string' || !value.trim()) {
-        return new Date().toISOString();
+        return getCurrentMexicoIsoDateTime();
     }
 
     return value;
@@ -58,7 +59,9 @@ export const notaService = {
     },
 
     listarPorConsulta: async (consultaId: number): Promise<NotaClinica[]> => {
-        const response = await fetchApi(`/api/notas/consulta/${consultaId}`);
+        const response = await fetchApi(`/api/notas/consulta/${consultaId}`, {
+            cache: 'no-store',
+        });
 
         if (!response.ok) {
             const body = await response.text();

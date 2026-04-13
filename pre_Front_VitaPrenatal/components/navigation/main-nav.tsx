@@ -14,7 +14,6 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useConfiguration } from "@/lib/configuration-context"
-import { isNotificationEnabled } from "@/lib/notifications-data"
 import { cn } from "@/lib/utils"
 
 const navItems = [
@@ -47,11 +46,9 @@ export function MainNav({
 }: MainNavProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { configuraciones, notifications } = useConfiguration()
+  const { notifications } = useConfiguration()
 
-  const unreadCount = notifications.filter(
-    (item) => !item.leida && isNotificationEnabled(item, configuraciones),
-  ).length
+  const unreadCount = notifications.length
 
   const notificationsActive = pathname === "/notificaciones"
   const settingsActive = pathname === "/configuraciones"
