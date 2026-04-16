@@ -2,18 +2,17 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { usePatients, Patient, Consultation } from "@/lib/patient-context"
+import { usePatients, Patient, PatientRegistrationInput } from "@/lib/patient-context"
+import { PacienteCreateFormInput } from "@/interfaz/paciente"
 import { useConfiguration } from "@/lib/configuration-context"
+import { consultaService } from "@/servicios/consultaService"
 import { MainNav } from "@/components/navigation/main-nav"
 import { PatientsTable } from "@/components/patients/patients-table"
 import { PatientForm } from "@/components/patients/patient-form"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Toaster } from "@/components/ui/toaster"
 import { UserPlus, Search } from "lucide-react"
-
-type PatientFormData = Omit<Patient, "id" | "consultations"> & {
-  consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability">
-}
 
 export default function PacientesPage() {
   const router = useRouter()
@@ -21,6 +20,8 @@ export default function PacientesPage() {
   const { fetchNotificaciones } = useConfiguration()
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null)
+  const [hasRegisteredConsultations, setHasRegisteredConsultations] = useState(false)
+  const [antecedentsLocked, setAntecedentsLocked] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
 
   const filteredPatients = patients.filter((patient) =>
@@ -32,33 +33,51 @@ export default function PacientesPage() {
     router.push("/")
   }
 
-  const handleEdit = (patient: Patient) => {
+  const handleEdit = async (patient: Patient) => {
+    const hasCachedConsultas = patient.consultations.length > 0
+
+    setHasRegisteredConsultations(hasCachedConsultas)
+    setAntecedentsLocked(hasCachedConsultas)
     setEditingPatient(patient)
     setIsFormOpen(true)
+
+    try {
+      const consultas = await consultaService.listarPorPacienteId(patient.pacienteId)
+      const hasConsultas = consultas.length > 0
+      setHasRegisteredConsultations(hasConsultas)
+      setAntecedentsLocked(hasConsultas)
+    } catch (error) {
+      console.error("Error al verificar consultas del paciente:", error)
+    }
   }
 
   const handleDelete = (id: string) => {
     deletePatient(id)
   }
 
-  const handleSave = async (patientData: PatientFormData) => {
+  const handleSave = async (patientData: PatientRegistrationInput) => {
     await addPatient(patientData)
     await fetchNotificaciones()
     setEditingPatient(null)
   }
 
-  const handleUpdate = (id: string, patientData: Partial<Omit<Patient, "consultations">>) => {
-    updatePatient(id, patientData)
+  const handleUpdate = async (id: string, patientData: PacienteCreateFormInput) => {
+    await updatePatient(id, patientData)
+    await fetchNotificaciones()
     setEditingPatient(null)
   }
 
   const handleCloseForm = () => {
     setIsFormOpen(false)
     setEditingPatient(null)
+    setHasRegisteredConsultations(false)
+    setAntecedentsLocked(false)
   }
 
   const handleOpenForm = () => {
     setEditingPatient(null)
+    setHasRegisteredConsultations(false)
+    setAntecedentsLocked(false)
     setIsFormOpen(true)
   }
 
@@ -109,6 +128,8 @@ export default function PacientesPage() {
           onSave={handleSave}
           onUpdate={handleUpdate}
           editingPatient={editingPatient}
+          hasRegisteredConsultations={hasRegisteredConsultations}
+          antecedentsLocked={antecedentsLocked}
         />
       </main>
 
@@ -123,6 +144,8 @@ export default function PacientesPage() {
           </div>
         </div>
       </footer>
+
+      <Toaster />
     </div>
   )
 }

@@ -4,20 +4,22 @@ import { createContext, useContext, useState, ReactNode, useEffect } from "react
 import { pacienteService } from '@/servicios/pacienteService';
 import { expedienteService } from '@/servicios/expedienteService';
 import { consultaService } from '@/servicios/consultaService';
+import type { PacienteCreateFormInput, PacienteResponse } from '@/interfaz/paciente';
 import type { Consulta as ApiConsulta } from '@/interfaz/consulta';
 import { extractDateTimeInMexico, getDateTimeSortKey } from "@/lib/mexico-time"
+import { normalizeClinicalRisk } from "@/lib/risk-normalization"
+import { mapPatientFormToCreatePayload } from "@/servicios/pacienteMapper"
 
 export type RiskLevel = "none" | "low" | "moderate" | "high"
 
 function mapApiRisk(riesgo: string): RiskLevel {
-  switch (riesgo.toUpperCase()) {
+  switch (normalizeClinicalRisk(riesgo)) {
     case "NINGUNO":
       return "none"
-    case "BAJO":
-      return "low"
     case "MEDIO":
       return "moderate"
     case "ALTO":
+    case "HOSPITALIZACION":
       return "high"
     default:
       return "none"
@@ -44,6 +46,12 @@ function getConsultationDateTimeFromApi(value: string): { date: string; time: st
   }
 }
 
+interface ConsultationAntecedents {
+  previousHypertension: boolean
+  diabetes: boolean
+  familyHypertensionHistory: boolean
+}
+
 export interface Consultation {
   id: string
   date: string
@@ -52,6 +60,7 @@ export interface Consultation {
   weight: number
   height: number
   bmi: number
+  pam: number
   systolic: number
   diastolic: number
   previousHypertension: boolean
@@ -62,17 +71,37 @@ export interface Consultation {
   notes?: string
 }
 
+export type ConsultationCreateInput = Omit<
+  Consultation,
+  "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory"
+>
+
+export interface PatientRegistrationInput extends PacienteCreateFormInput {
+  consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability">
+}
+
 export interface Patient {
   id: string
+  pacienteId: number
   name: string
   age: number
   address: string
   city: string
   phone: string
   maritalStatus: string
+  tipo_sangre: string | null
   previousHypertension: boolean
   diabetes: boolean
   familyHypertensionHistory: boolean
+  fam_cardiopatia: boolean
+  enf_renal_cronica: boolean
+  abortos_previos: number
+  cesarea_previos: number
+  embarazos_previos: number
+  partos_previos: number
+  embarazo_multiple: boolean
+  muerte_fetal: boolean
+  restriccion_fetal: boolean
   consultations: Consultation[]
 }
 
@@ -90,11 +119,11 @@ interface PatientContextType {
   loading: boolean
   selectedPatient: Patient | null
   selectedConsultation: Consultation | null
-  addPatient: (patient: Omit<Patient, "id" | "consultations"> & { consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability"> }) => void
-  updatePatient: (id: string, patient: Partial<Omit<Patient, "consultations">>) => void
+  addPatient: (patient: PatientRegistrationInput) => Promise<void>
+  updatePatient: (id: string, patient: PacienteCreateFormInput) => Promise<void>
   deletePatient: (id: string) => void
   selectPatient: (patient: Patient | null) => void
-  addConsultation: (patientId: string, consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory">) => void
+  addConsultation: (patientId: string, consultation: ConsultationCreateInput) => Promise<void>
   selectConsultation: (consultation: Consultation | null) => void
   updateConsultation: (patientId: string, consultationId: string, data: Partial<Consultation>) => void
 }
@@ -106,6 +135,77 @@ function calculateBMI(weight: number, height: number): number {
   return weight / (heightInMeters * heightInMeters)
 }
 
+function calculateMeanArterialPressure(systolic: number, diastolic: number): number {
+  return Number(((systolic + (2 * diastolic)) / 3).toFixed(1))
+}
+
+function mapAntecedentsFromPacienteApi(paciente: PacienteResponse): ConsultationAntecedents {
+  return {
+    previousHypertension: paciente.hipertension_previa ?? false,
+    diabetes: paciente.diabetes ?? false,
+    familyHypertensionHistory: paciente.antecedentes_familia_hipertension ?? false,
+  }
+}
+
+function mapConsultaFromApi(
+  consulta: ApiConsultaConId,
+  antecedentes: ConsultationAntecedents,
+): Consultation {
+  const { date, time } = getConsultationDateTimeFromApi(consulta.fecha_hora_consulta)
+  const pam = typeof consulta.pam === "number"
+    ? consulta.pam
+    : calculateMeanArterialPressure(consulta.presion_sistolica, consulta.presion_diastolica)
+
+  return {
+    id: consulta.id.toString(),
+    date,
+    time,
+    gestationalWeek: consulta.edad_gestacional,
+    weight: consulta.peso,
+    height: consulta.altura,
+    bmi: consulta.imc,
+    pam,
+    systolic: consulta.presion_sistolica,
+    diastolic: consulta.presion_diastolica,
+    previousHypertension: antecedentes.previousHypertension,
+    diabetes: antecedentes.diabetes,
+    familyHypertensionHistory: antecedentes.familyHypertensionHistory,
+    riskLevel: mapApiRisk(consulta.riesgo || "NINGUNO"),
+    riskProbability: 0,
+  }
+}
+
+function mapPacienteFromApi(
+  paciente: PacienteResponse,
+  expedienteId: number,
+  consultations: Consultation[],
+): Patient {
+  return {
+    id: expedienteId.toString(),
+    pacienteId: paciente.id,
+    name: paciente.nombre,
+    age: paciente.edad,
+    address: paciente.domicilio ?? "",
+    city: paciente.ciudad ?? "",
+    phone: paciente.telefono ?? "",
+    maritalStatus: paciente.estado_civil ?? "No especificado",
+    tipo_sangre: paciente.tipo_sangre ?? null,
+    previousHypertension: paciente.hipertension_previa ?? false,
+    diabetes: paciente.diabetes ?? false,
+    familyHypertensionHistory: paciente.antecedentes_familia_hipertension ?? false,
+    fam_cardiopatia: paciente.fam_cardiopatia ?? false,
+    enf_renal_cronica: paciente.enf_renal_cronica ?? false,
+    abortos_previos: paciente.abortos_previos ?? 0,
+    cesarea_previos: paciente.cesarea_previos ?? 0,
+    embarazos_previos: paciente.embarazos_previos ?? 0,
+    partos_previos: paciente.partos_previos ?? 0,
+    embarazo_multiple: paciente.embarazo_multiple ?? false,
+    muerte_fetal: paciente.muerte_fetal ?? false,
+    restriccion_fetal: paciente.restriccion_fetal ?? false,
+    consultations,
+  }
+}
+
 // Sample patients data with consultations
 const initialPatients: Patient[] = []
 
@@ -115,55 +215,30 @@ export function PatientProvider({ children }: { children: ReactNode }) {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null)
 
+  const loadPatientsFromBackend = async (): Promise<Patient[]> => {
+    const expedientes = await expedienteService.listar();
+    const allConsultas = await consultaService.listar();
+
+    const loadedPatients = await Promise.all(
+      expedientes.map(async (exp) => {
+        const paciente = await pacienteService.obtenerPorId(exp.paciente_id);
+        const antecedentes = mapAntecedentsFromPacienteApi(paciente)
+        const consultasForExp = allConsultas
+          .filter((c): c is ApiConsultaConId => c.expediente_id === exp.id && hasConsultaId(c))
+          .map((c) => mapConsultaFromApi(c, antecedentes));
+
+        return mapPacienteFromApi(paciente, exp.id, consultasForExp)
+      }),
+    )
+
+    return loadedPatients
+  }
+
   useEffect(() => {
     const loadData = async () => {
       try {
-        const expedientes = await expedienteService.listar();
-        const allConsultas = await consultaService.listar();
-        console.log("🔍 CONSULTAS DEL API:", allConsultas);
-        const patientMap = new Map<string, Patient>();
-
-        for (const exp of expedientes) {
-          const paciente = await pacienteService.obtenerPorId(exp.paciente_id);
-          const consultasForExp = allConsultas
-            .filter((c): c is ApiConsultaConId => c.expediente_id === exp.id && hasConsultaId(c))
-            .map((c) => {
-              const { date, time } = getConsultationDateTimeFromApi(c.fecha_hora_consulta)
-              console.log(`📋 Procesando consulta ID ${c.id}:`, { riesgo: c.riesgo, presion_sistolica: c.presion_sistolica, presion_diastolica: c.presion_diastolica, imc: c.imc });
-              return {
-                id: c.id.toString(),
-                date,
-                time,
-                gestationalWeek: c.edad_gestacional,
-                weight: c.peso,
-                height: c.altura,
-                bmi: c.imc,
-                systolic: c.presion_sistolica,
-                diastolic: c.presion_diastolica,
-                previousHypertension: paciente.hipertension_previa,
-                diabetes: paciente.diabetes,
-                familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
-                riskLevel: mapApiRisk(c.riesgo || "NINGUNO"),
-                riskProbability: 0, // Could be calculated or from API if available
-              }
-            });
-
-          const patient: Patient = {
-            id: exp.id.toString(),
-            name: paciente.nombre,
-            age: paciente.edad,
-            address: paciente.domicilio,
-            city: paciente.ciudad,
-            phone: paciente.telefono,
-            maritalStatus: paciente.estado_civil,
-            previousHypertension: paciente.hipertension_previa,
-            diabetes: paciente.diabetes,
-            familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
-            consultations: consultasForExp,
-          };
-          patientMap.set(exp.id.toString(), patient);
-        }
-        setPatients(Array.from(patientMap.values()));
+        const loadedPatients = await loadPatientsFromBackend()
+        setPatients(loadedPatients)
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -173,29 +248,19 @@ export function PatientProvider({ children }: { children: ReactNode }) {
     loadData();
   }, []);
 
-  const addPatient = async (patientData: Omit<Patient, "id" | "consultations"> & { consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability"> }) => {
+  const addPatient = async (patientData: PatientRegistrationInput) => {
     const { consultation, ...patientInfo } = patientData;
     
     try {
-      // Create paciente
-      const pacienteData = {
-        nombre: patientInfo.name,
-        edad: patientInfo.age,
-        domicilio: patientInfo.address,
-        ciudad: patientInfo.city,
-        telefono: patientInfo.phone,
-        estado_civil: patientInfo.maritalStatus,
-        hipertension_previa: patientInfo.previousHypertension ?? false,
-        diabetes: patientInfo.diabetes ?? false,
-        antecedentes_familia_hipertension: patientInfo.familyHypertensionHistory ?? false,
-      };
-      console.log("🛠️ Enviando paciente al backend:", pacienteData);
-      const pacienteResponse = await pacienteService.crear(pacienteData);
-      console.log("✅ Paciente creado (respuesta backend):", pacienteResponse);
+      const pacientePayload = mapPatientFormToCreatePayload(patientInfo)
+      const pacienteResponse = await pacienteService.crear(pacientePayload)
       
       // Create expediente
       const expedienteData = { paciente_id: pacienteResponse.id };
       const expedienteResponse = await expedienteService.crear(expedienteData);
+      const calculatedPam = Number.isFinite(consultation.pam)
+        ? consultation.pam
+        : calculateMeanArterialPressure(consultation.systolic, consultation.diastolic)
       
       // Create consulta
       const consultaData = {
@@ -209,69 +274,63 @@ export function PatientProvider({ children }: { children: ReactNode }) {
         imc: calculateBMI(consultation.weight, consultation.height),
         presion_sistolica: consultation.systolic,
         presion_diastolica: consultation.diastolic,
+        pam: calculatedPam,
       };
-      await consultaService.crear(consultaData);
-      
-      // Reload data
-      // For simplicity, reload all
-      const expedientes = await expedienteService.listar();
-      // ... same as in useEffect
-      // To avoid duplication, perhaps extract to a function
-      // For now, duplicate
-      const allConsultas = await consultaService.listar();
-      const patientMap = new Map<string, Patient>();
-      for (const exp of expedientes) {
-        const paciente = await pacienteService.obtenerPorId(exp.paciente_id);
-        const consultasForExp = allConsultas
-          .filter((c): c is ApiConsultaConId => c.expediente_id === exp.id && hasConsultaId(c))
-          .map((c) => {
-            const { date, time } = getConsultationDateTimeFromApi(c.fecha_hora_consulta)
+      const consultaCreada = await consultaService.crear(consultaData);
 
-            return {
-              id: c.id.toString(),
-              date,
-              time,
-              gestationalWeek: c.edad_gestacional,
-              weight: c.peso,
-              height: c.altura,
-              bmi: c.imc,
-              systolic: c.presion_sistolica,
-              diastolic: c.presion_diastolica,
-              previousHypertension: paciente.hipertension_previa,
-              diabetes: paciente.diabetes,
-              familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
-              riskLevel: mapApiRisk(c.riesgo || "NINGUNO"),
-              riskProbability: 0,
-            }
-          });
-        const patient: Patient = {
-          id: exp.id.toString(),
-          name: paciente.nombre,
-          age: paciente.edad,
-          address: paciente.domicilio,
-          city: paciente.ciudad,
-          phone: paciente.telefono,
-          maritalStatus: paciente.estado_civil,
-          previousHypertension: paciente.hipertension_previa,
-          diabetes: paciente.diabetes,
-          familyHypertensionHistory: paciente.antecedentes_familia_hipertension,
-          consultations: consultasForExp,
-        };
-        patientMap.set(exp.id.toString(), patient);
+      if (typeof consultaCreada.id === "number") {
+        await consultaService.obtenerPrediccion(consultaCreada.id)
       }
-      setPatients(Array.from(patientMap.values()));
+      
+      const refreshedPatients = await loadPatientsFromBackend()
+      setPatients(refreshedPatients)
     } catch (error) {
       console.error('Error adding patient:', error);
+      throw error
     }
   }
 
-  const updatePatient = (id: string, patientData: Partial<Omit<Patient, "consultations">>) => {
-    setPatients((prev) =>
-      prev.map((p) => {
-        if (p.id !== id) return p
-        return { ...p, ...patientData }
-      })
+  const updatePatient = async (id: string, patientData: PacienteCreateFormInput) => {
+    const currentPatient = patients.find((patient) => patient.id === id)
+
+    if (!currentPatient) {
+      throw new Error("Recurso no encontrado")
+    }
+
+    const payload = mapPatientFormToCreatePayload(patientData)
+    const pacienteActualizado = await pacienteService.actualizar(currentPatient.pacienteId, payload)
+
+    const expedienteId = Number.parseInt(currentPatient.id, 10)
+    const resolvedExpedienteId = Number.isNaN(expedienteId) ? currentPatient.pacienteId : expedienteId
+
+    const updatedConsultations = currentPatient.consultations.map((consultation) => ({
+      ...consultation,
+      previousHypertension: pacienteActualizado.hipertension_previa ?? false,
+      diabetes: pacienteActualizado.diabetes ?? false,
+      familyHypertensionHistory: pacienteActualizado.antecedentes_familia_hipertension ?? false,
+    }))
+
+    const updatedPatient = mapPacienteFromApi(
+      pacienteActualizado,
+      resolvedExpedienteId,
+      updatedConsultations,
     )
+
+    setPatients((prev) => prev.map((patient) => (patient.id === id ? updatedPatient : patient)))
+
+    if (selectedPatient?.id === id) {
+      setSelectedPatient(updatedPatient)
+
+      if (selectedConsultation) {
+        const refreshedSelectedConsultation = updatedPatient.consultations.find(
+          (consultation) => consultation.id === selectedConsultation.id,
+        )
+
+        if (refreshedSelectedConsultation) {
+          setSelectedConsultation(refreshedSelectedConsultation)
+        }
+      }
+    }
   }
 
   const deletePatient = async (id: string) => {
@@ -297,15 +356,16 @@ export function PatientProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const addConsultation = async (patientId: string, consultationData: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory">) => {
+  const addConsultation = async (patientId: string, consultationData: ConsultationCreateInput) => {
     const patient = patients.find(p => p.id === patientId);
-    if (!patient) return;
+    if (!patient) {
+      throw new Error("Recurso no encontrado")
+    }
 
     try {
       const expedienteId = Number.parseInt(patientId, 10)
       if (Number.isNaN(expedienteId)) {
-        console.error("ID de expediente inválido:", patientId)
-        return
+        throw new Error("ID de expediente invalido")
       }
 
       const expediente = await expedienteService.obtenerPorId(expedienteId)
@@ -321,45 +381,44 @@ export function PatientProvider({ children }: { children: ReactNode }) {
         imc: calculateBMI(consultationData.weight, consultationData.height),
         presion_sistolica: consultationData.systolic,
         presion_diastolica: consultationData.diastolic,
+        pam: Number.isFinite(consultationData.pam)
+          ? consultationData.pam
+          : calculateMeanArterialPressure(consultationData.systolic, consultationData.diastolic),
       };
-      console.log("🛠️ Enviando consulta al backend:", consultaData);
       const nuevaConsulta = await consultaService.crear(consultaData);
-      console.log("✅ Consulta creada (respuesta backend):", nuevaConsulta);
+
+      if (typeof nuevaConsulta.id === "number") {
+        await consultaService.obtenerPrediccion(nuevaConsulta.id)
+      }
       
       // Reload consultations for this patient
-      const allConsultas = await consultaService.listar();
-      const consultasForExp = allConsultas
+      const allPatientConsultas = await consultaService.listarPorPacienteId(expediente.paciente_id);
+      const consultasForExp = allPatientConsultas
         .filter((c): c is ApiConsultaConId => c.expediente_id === expedienteId && hasConsultaId(c))
-        .map((c) => {
-          const { date, time } = getConsultationDateTimeFromApi(c.fecha_hora_consulta)
-
-          return {
-            id: c.id.toString(),
-            date,
-            time,
-            gestationalWeek: c.edad_gestacional,
-            weight: c.peso,
-            height: c.altura,
-            bmi: c.imc,
-            systolic: c.presion_sistolica,
-            diastolic: c.presion_diastolica,
-            previousHypertension: patient.previousHypertension,
-            diabetes: patient.diabetes,
-            familyHypertensionHistory: patient.familyHypertensionHistory,
-            riskLevel: mapApiRisk(c.riesgo || "NINGUNO"),
-            riskProbability: 0,
-          }
-        });
+        .map((c) => mapConsultaFromApi(c, {
+          previousHypertension: patient.previousHypertension,
+          diabetes: patient.diabetes,
+          familyHypertensionHistory: patient.familyHypertensionHistory,
+        }));
       
-      setPatients(prev => prev.map(p => p.id === patientId ? { ...p, consultations: consultasForExp } : p));
+      setPatients(prev => prev.map((p) => {
+        if (p.id !== patientId) {
+          return p
+        }
+
+        return { ...p, consultations: consultasForExp }
+      }));
       
       // Update selected consultation if this is the current patient
       if (selectedPatient?.id === patientId) {
-        const latest = getLatestConsultation({ ...selectedPatient, consultations: consultasForExp });
-        setSelectedConsultation(latest);
+        const updatedSelectedPatient = { ...selectedPatient, consultations: consultasForExp }
+        setSelectedPatient(updatedSelectedPatient)
+        const latest = getLatestConsultation(updatedSelectedPatient)
+        setSelectedConsultation(latest)
       }
     } catch (error) {
       console.error('Error adding consultation:', error);
+      throw error
     }
   }
 
@@ -383,6 +442,10 @@ export function PatientProvider({ children }: { children: ReactNode }) {
               updated.bmi = calculateBMI(updated.weight, updated.height)
             }
 
+            if (data.systolic !== undefined || data.diastolic !== undefined) {
+              updated.pam = calculateMeanArterialPressure(updated.systolic, updated.diastolic)
+            }
+
             return updated
           }),
         }
@@ -394,6 +457,9 @@ export function PatientProvider({ children }: { children: ReactNode }) {
       const updated = { ...selectedConsultation, ...data }
       if (data.weight !== undefined || data.height !== undefined) {
         updated.bmi = calculateBMI(updated.weight, updated.height)
+      }
+      if (data.systolic !== undefined || data.diastolic !== undefined) {
+        updated.pam = calculateMeanArterialPressure(updated.systolic, updated.diastolic)
       }
       setSelectedConsultation(updated)
     }

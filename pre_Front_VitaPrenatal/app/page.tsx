@@ -1,10 +1,18 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { usePatients, RiskLevel as ContextRiskLevel, Consultation } from "@/lib/patient-context"
+import {
+  usePatients,
+  RiskLevel as ContextRiskLevel,
+  Consultation,
+  ConsultationCreateInput,
+} from "@/lib/patient-context"
 import { useConfiguration } from "@/lib/configuration-context"
 import { consultaService } from "@/servicios/consultaService"
+import { fetchApi } from "@/servicios/apiClient"
+import { ApiServiceError, getApiErrorMessage } from "@/servicios/apiError"
 import { Consulta as ApiConsulta, PrediccionResponse } from "@/interfaz/consulta"
+import { normalizeClinicalRisk, NormalizedRisk } from "@/lib/risk-normalization"
 import { MainNav } from "@/components/navigation/main-nav"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { PatientInfoCard } from "@/components/dashboard/patient-info-card"
@@ -29,14 +37,14 @@ import {
 import { Users, ArrowRight } from "lucide-react"
 import Link from "next/link"
 
-type BackendRisk = "NINGUNO" | "BAJO" | "MEDIO" | "ALTO"
+type BackendRisk = NormalizedRisk
 
 function mapContextRiskToBackendRisk(level: ContextRiskLevel): BackendRisk {
   switch (level) {
     case "none":
       return "NINGUNO"
     case "low":
-      return "BAJO"
+      return "MEDIO"
     case "moderate":
       return "MEDIO"
     case "high":
@@ -47,12 +55,11 @@ function mapContextRiskToBackendRisk(level: ContextRiskLevel): BackendRisk {
 }
 
 function mapApiRiskToContextRisk(riesgo: string | undefined): ContextRiskLevel {
-  switch ((riesgo || "NINGUNO").toUpperCase()) {
-    case "BAJO":
-      return "low"
+  switch (normalizeClinicalRisk(riesgo)) {
     case "MEDIO":
       return "moderate"
     case "ALTO":
+    case "HOSPITALIZACION":
       return "high"
     case "NINGUNO":
     default:
@@ -69,14 +76,17 @@ function buildPredictionFromConsulta(consulta: ApiConsulta, fallbackConsultaId: 
     return null
   }
 
+  const principalRisk = normalizeClinicalRisk(consulta.riesgo)
+
   return {
     consulta_id: typeof consulta.id === "number" ? consulta.id : fallbackConsultaId,
-    riesgo: consulta.riesgo || "NINGUNO",
-    riesgo_ml: consulta.riesgo_ml || consulta.riesgo || "NINGUNO",
-    confianza_ml: typeof consulta.confianza_ml === "number" ? consulta.confianza_ml : Number.NaN,
-    score_total: typeof consulta.score_total === "number" ? consulta.score_total : Number.NaN,
+    paciente_id: consulta.paciente_id,
+    riesgo: principalRisk,
+    riesgo_ml: consulta.riesgo_ml ? normalizeClinicalRisk(consulta.riesgo_ml) : principalRisk,
+    riesgo_ml_modelo: consulta.riesgo_ml_modelo ?? null,
+    confianza_ml: typeof consulta.confianza_ml === "number" ? consulta.confianza_ml : undefined,
+    score_total: typeof consulta.score_total === "number" ? consulta.score_total : undefined,
     interpretacion: consulta.interpretacion!.trim(),
-    datos_consulta: consulta,
   }
 }
 
@@ -108,6 +118,7 @@ export default function VitaPrenatalMonitoreoClinico() {
   const [diastolicData, setDiastolicData] = useState<{ week: string; value: number }[]>([])
   const [showConsultationForm, setShowConsultationForm] = useState(false)
   const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
+  const [predictionErrorMessage, setPredictionErrorMessage] = useState<string | null>(null)
   const [consultationDetails, setConsultationDetails] = useState<ApiConsulta | null>(null)
   const [predictionLoading, setPredictionLoading] = useState(false)
   const [openingPdfConsultationId, setOpeningPdfConsultationId] = useState<string | null>(null)
@@ -132,6 +143,10 @@ export default function VitaPrenatalMonitoreoClinico() {
       weight: consultationFromApi.peso,
       height: consultationFromApi.altura,
       bmi: consultationFromApi.imc,
+      pam:
+        typeof consultationFromApi.pam === "number"
+          ? consultationFromApi.pam
+          : Number(((consultationFromApi.presion_sistolica + 2 * consultationFromApi.presion_diastolica) / 3).toFixed(1)),
       systolic: consultationFromApi.presion_sistolica,
       diastolic: consultationFromApi.presion_diastolica,
       riskLevel: mapApiRiskToContextRisk(consultationFromApi.riesgo),
@@ -142,6 +157,7 @@ export default function VitaPrenatalMonitoreoClinico() {
     if (!consultationId || !selectedPatient) {
       setConsultationDetails(null)
       setPrediction(null)
+      setPredictionErrorMessage(null)
       setPredictionLoading(false)
       return
     }
@@ -159,6 +175,7 @@ export default function VitaPrenatalMonitoreoClinico() {
 
     setPredictionLoading(true)
     setPrediction(null)
+    setPredictionErrorMessage(null)
 
     try {
       const consultationFromApi = await consultaService.obtenerPorId(idNumber)
@@ -174,14 +191,18 @@ export default function VitaPrenatalMonitoreoClinico() {
 
       if (storedPrediction) {
         setPrediction(storedPrediction)
+        setPredictionErrorMessage(null)
         return
       }
 
-      await consultaService.obtenerPrediccion(idNumber)
+      const predictionFromApi = await consultaService.obtenerPrediccion(idNumber)
 
       if (latestConsultationRequestId.current !== requestId) {
         return
       }
+
+      setPrediction(predictionFromApi)
+      setPredictionErrorMessage(null)
 
       const refreshedConsultation = await consultaService.obtenerPorId(idNumber)
 
@@ -191,19 +212,25 @@ export default function VitaPrenatalMonitoreoClinico() {
 
       setConsultationDetails(refreshedConsultation)
       syncConsultationInContext(consultationId, refreshedConsultation)
-      setPrediction(buildPredictionFromConsulta(refreshedConsultation, idNumber))
     } catch (error) {
       if (latestConsultationRequestId.current !== requestId) {
         return
       }
 
-      const errorMessage =
-        error instanceof Error ? error.message : "No fue posible cargar el analisis clinico de la consulta."
+      const isNetworkOrServerError =
+        !(error instanceof ApiServiceError) ||
+        error.status >= 500
+
+      const errorMessage = isNetworkOrServerError
+        ? "No fue posible cargar la prediccion clinica."
+        : getApiErrorMessage(error)
+
+      setPredictionErrorMessage(`${errorMessage} Reintente manualmente.`)
 
       toast({
         variant: "destructive",
         title: "Error al cargar consulta",
-        description: errorMessage,
+        description: `${errorMessage} Reintente manualmente.`,
       })
       console.error("Error loading consultation details:", error)
     } finally {
@@ -217,14 +244,23 @@ export default function VitaPrenatalMonitoreoClinico() {
     if (!consultation?.id) return
 
     try {
-      await fetch(`http://localhost:8000/api/actualizar/${consultation.id}`, {
+      const response = await fetchApi(`/api/actualizar/${consultation.id}`, {
         method: "POST",
       })
+
+      if (!response.ok) {
+        throw new Error(`Error al actualizar consulta: ${response.status} ${response.statusText}`)
+      }
 
       await loadConsultationClinicalData(consultation.id)
       await fetchNotificaciones()
       setLastUpdated(getCurrentMexicoDateTimeLabel())
     } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error al actualizar consulta",
+        description: getApiErrorMessage(error),
+      })
       console.error("Error:", error)
     }
   }
@@ -263,10 +299,21 @@ export default function VitaPrenatalMonitoreoClinico() {
     }
   }
 
-  const handleNewConsultation = async (consultationData: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory">) => {
-    if (selectedPatient) {
+  const handleNewConsultation = async (consultationData: ConsultationCreateInput) => {
+    if (!selectedPatient) {
+      throw new Error("Recurso no encontrado")
+    }
+
+    try {
       await addConsultation(selectedPatient.id, consultationData)
       await fetchNotificaciones()
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error al registrar consulta",
+        description: getApiErrorMessage(error),
+      })
+      throw error
     }
   }
 
@@ -322,8 +369,7 @@ export default function VitaPrenatalMonitoreoClinico() {
         await consultaService.descargarReportePdf(consultaId)
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "No fue posible descargar el reporte PDF."
+      const errorMessage = getApiErrorMessage(error)
 
       toast({
         variant: "destructive",
@@ -428,6 +474,7 @@ export default function VitaPrenatalMonitoreoClinico() {
   const patientData = {
     name: selectedPatient.name,
     age: selectedPatient.age,
+    bloodType: selectedPatient.tipo_sangre,
     gestationalWeek: consultation.gestationalWeek,
     weight: consultation.weight,
     height: consultation.height,
@@ -435,9 +482,18 @@ export default function VitaPrenatalMonitoreoClinico() {
   }
 
   const obstetricHistory = {
+    fam_cardiopatia: selectedPatient.fam_cardiopatia,
+    antecedentes_familia_hipertension: selectedPatient.familyHypertensionHistory,
+    enf_renal_cronica: selectedPatient.enf_renal_cronica,
     previousHypertension: consultation.previousHypertension,
     diabetes: consultation.diabetes,
-    familyHypertensionHistory: consultation.familyHypertensionHistory,
+    abortos_previos: selectedPatient.abortos_previos,
+    cesarea_previos: selectedPatient.cesarea_previos,
+    embarazos_previos: selectedPatient.embarazos_previos,
+    partos_previos: selectedPatient.partos_previos,
+    embarazo_multiple: selectedPatient.embarazo_multiple,
+    muerte_fetal: selectedPatient.muerte_fetal,
+    restriccion_fetal: selectedPatient.restriccion_fetal,
   }
 
   const backendRisk = mapContextRiskToBackendRisk(consultation.riskLevel)
@@ -445,12 +501,16 @@ export default function VitaPrenatalMonitoreoClinico() {
     ? {
         riesgo: prediction.riesgo,
         riesgo_ml: prediction.riesgo_ml,
+        riesgo_ml_modelo: prediction.riesgo_ml_modelo,
         confianza_ml: prediction.confianza_ml,
         score_total: prediction.score_total,
       }
     : {
-        riesgo: consultationDetails?.riesgo || backendRisk,
-        riesgo_ml: consultationDetails?.riesgo_ml || consultationDetails?.riesgo || backendRisk,
+        riesgo: normalizeClinicalRisk(consultationDetails?.riesgo || backendRisk),
+        riesgo_ml: consultationDetails?.riesgo_ml
+          ? normalizeClinicalRisk(consultationDetails.riesgo_ml)
+          : undefined,
+        riesgo_ml_modelo: consultationDetails?.riesgo_ml_modelo ?? undefined,
         confianza_ml: consultationDetails?.confianza_ml ?? undefined,
         score_total: consultationDetails?.score_total ?? undefined,
       }
@@ -489,7 +549,12 @@ export default function VitaPrenatalMonitoreoClinico() {
 
           {/* Center Column - Risk Indicator, BP Input, and Charts */}
           <div className="md:col-span-1 xl:col-span-5 space-y-6">
-            <RiskIndicatorCard data={currentRiskData} isLoading={predictionLoading} />
+            <RiskIndicatorCard
+              data={currentRiskData}
+              isLoading={predictionLoading}
+              errorMessage={predictionErrorMessage}
+              onRetry={consultation?.id ? () => void loadConsultationClinicalData(consultation.id) : undefined}
+            />
             
             <BloodPressureInputCard
               systolic={systolic}

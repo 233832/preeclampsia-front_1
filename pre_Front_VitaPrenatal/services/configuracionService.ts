@@ -7,7 +7,7 @@ export interface ConfiguracionesPayload extends Record<string, unknown> {
   criticas: boolean
   advertencias: boolean
   informativas: boolean
-  frecuencia_bajo?: number
+  frecuencia_ninguno?: number
   frecuencia_medio?: number
   frecuencia_alto?: number
   seguimiento_riesgo_bajo_dias?: number

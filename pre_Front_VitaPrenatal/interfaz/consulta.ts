@@ -1,3 +1,15 @@
+export type RiesgoType = "NINGUNO" | "MEDIO" | "ALTO" | "HOSPITALIZACION"
+
+export interface PrediccionDatosConsulta {
+    edad_madre: number;
+    imc: number;
+    presion_sistolica: number;
+    presion_diastolica: number;
+    hipertension_previa: boolean;
+    diabetes: boolean;
+    antecedentes_familia_hipertension: boolean;
+}
+
 export interface Consulta {
     id?: number;
     paciente_id: number;
@@ -10,8 +22,10 @@ export interface Consulta {
     imc: number;
     presion_sistolica: number;
     presion_diastolica: number;
-    riesgo?: string;
-    riesgo_ml?: string | null;
+    pam: number;
+    riesgo?: RiesgoType;
+    riesgo_ml?: RiesgoType | null;
+    riesgo_ml_modelo?: string | null;
     confianza_ml?: number | null;
     score_total?: number | null;
     interpretacion?: string | null;
@@ -19,10 +33,12 @@ export interface Consulta {
 
 export interface PrediccionResponse {
     consulta_id: number;
-    riesgo: string;
-    riesgo_ml: string;
-    confianza_ml: number;
-    score_total: number;
+    paciente_id?: number;
+    riesgo: RiesgoType;
+    riesgo_ml: RiesgoType;
+    riesgo_ml_modelo?: string | null;
+    confianza_ml?: number | null;
+    score_total?: number | null;
     interpretacion: string;
-    datos_consulta: any;
+    datos_consulta?: PrediccionDatosConsulta;
 }

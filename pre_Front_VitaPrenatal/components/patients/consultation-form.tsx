@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -13,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Patient, Consultation } from "@/lib/patient-context"
+import { ConsultationCreateInput, Patient } from "@/lib/patient-context"
 import { Activity, Calendar, Scale } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getCurrentMexicoDate, getCurrentMexicoTime, getDateTimeSortKey } from "@/lib/mexico-time"
@@ -22,7 +21,7 @@ interface ConsultationFormProps {
   open: boolean
   onClose: () => void
   patient: Patient
-  onSave: (consultation: Omit<Consultation, "id" | "bmi" | "riskLevel" | "riskProbability" | "previousHypertension" | "diabetes" | "familyHypertensionHistory">) => void
+  onSave: (consultation: ConsultationCreateInput) => Promise<void>
 }
 
 export function ConsultationForm({ open, onClose, patient, onSave }: ConsultationFormProps) {
@@ -66,14 +65,23 @@ export function ConsultationForm({ open, onClose, patient, onSave }: Consultatio
     }
   }, [open, latestConsultation, patient])
 
-  const calculatedBMI = (formData.weight / ((formData.height / 100) ** 2)).toFixed(1)
+  const calculatedBMI = Number((formData.weight / ((formData.height / 100) ** 2)).toFixed(1))
+  const calculatedMAP = Number(((formData.systolic + (2 * formData.diastolic)) / 3).toFixed(1))
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Extraer solo los datos clínicos de la consulta, excluyendo antecedentes médicos
+    // Extraer solo los datos clínicos de la consulta y enviar PAM explícitamente.
     const { previousHypertension, diabetes, familyHypertensionHistory, ...consultationData } = formData
-    onSave(consultationData)
-    onClose()
+
+    try {
+      await onSave({
+        ...consultationData,
+        pam: calculatedMAP,
+      })
+      onClose()
+    } catch {
+      // El manejo visual del error ocurre en el contenedor padre.
+    }
   }
 
   return (
@@ -165,9 +173,34 @@ export function ConsultationForm({ open, onClose, patient, onSave }: Consultatio
                 />
               </div>
             </div>
-            <div className="p-2.5 rounded-lg bg-primary/10 text-center">
-              <p className="text-xs text-muted-foreground">IMC Calculado</p>
-              <p className="text-lg font-bold text-primary">{calculatedBMI}</p>
+          </div>
+
+          {/* Clinical Indicators */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-foreground">Indicadores Clinicos</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-primary/20 bg-primary/10 p-3">
+                <Label htmlFor="imc" className="text-xs">IMC *</Label>
+                <Input
+                  id="imc"
+                  type="number"
+                  value={calculatedBMI}
+                  readOnly
+                  className="mt-1 text-center font-bold text-primary"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">Valor calculado automaticamente</p>
+              </div>
+              <div className="rounded-lg border border-primary/20 bg-primary/10 p-3">
+                <Label htmlFor="pam" className="text-xs">PAM *</Label>
+                <Input
+                  id="pam"
+                  type="number"
+                  value={calculatedMAP}
+                  readOnly
+                  className="mt-1 text-center font-bold text-primary"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">PAM = (PS + (2 x PD)) / 3</p>
+              </div>
             </div>
           </div>
 

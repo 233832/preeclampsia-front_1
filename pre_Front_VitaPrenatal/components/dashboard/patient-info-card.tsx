@@ -7,6 +7,7 @@ import { User, Calendar, Scale, Ruler } from "lucide-react"
 interface PatientData {
   name: string
   age: number
+  bloodType: string | null
   gestationalWeek: number
   weight: number
   height: number
@@ -28,17 +29,25 @@ export function PatientInfoCard({ patient }: PatientInfoCardProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 border-b border-border/50 pb-3">
             <span className="text-xs text-muted-foreground">Nombre</span>
             <span className="font-medium text-sm truncate">{patient.name}</span>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Calendar className="h-3.5 w-3.5" />
-              Edad
-            </span>
-            <Badge variant="secondary" className="text-xs">{patient.age} años</Badge>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-md border border-border/50 bg-muted/30 px-3 py-2">
+              <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                Edad
+              </p>
+              <p className="mt-1 text-sm font-semibold">{patient.age} años</p>
+            </div>
+            <div className="rounded-md border border-border/50 bg-muted/30 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Tipo de sangre</p>
+              <p className="mt-1 text-sm font-semibold">{patient.bloodType ?? "No especificado"}</p>
+            </div>
           </div>
+
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Semana Gestacion</span>
             <Badge className="bg-primary/10 text-primary hover:bg-primary/20 text-xs">
