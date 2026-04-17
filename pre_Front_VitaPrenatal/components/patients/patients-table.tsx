@@ -55,6 +55,11 @@ const riskConfig: Record<RiskLevel, { label: string; bgColor: string; textColor:
     bgColor: "bg-risk-high/15",
     textColor: "text-risk-high",
   },
+  hospitalization: {
+    label: "Hospitalizacion",
+    bgColor: "bg-red-100 dark:bg-red-900/25",
+    textColor: "text-red-700 dark:text-red-300",
+  },
 }
 
 function formatDate(dateString: string): string {

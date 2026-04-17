@@ -14,8 +14,9 @@ import {
   BedDouble,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { normalizeClinicalRisk } from "@/lib/risk-normalization"
 
-type BackendRisk = "NINGUNO" | "BAJO" | "MEDIO" | "ALTO"
+type BackendRisk = "NINGUNO" | "BAJO" | "MEDIO" | "ALTO" | "HOSPITALIZACION"
 
 interface RecommendationsCardProps {
   riesgo: string
@@ -34,79 +35,106 @@ const recommendationsByRisk = {
     },
     {
       icon: Calendar,
-      title: "Frecuencia de consultas",
-      description: "Mantener citas prenatales regulares cada 4 semanas.",
+      title: "Frecuencia de chequeo",
+      description: "Mantener control prenatal cada 4 semanas (28 dias).",
     },
     {
       icon: Salad,
       title: "Estilo de vida saludable",
       description: "Mantener alimentacion balanceada y actividad fisica moderada.",
     },
+    {
+      icon: Stethoscope,
+      title: "Vigilancia de sintomas",
+      description: "Consultar antes de la cita si aparecen cefalea intensa, edema brusco o vision borrosa.",
+    },
   ],
   BAJO: [
     {
       icon: HeartPulse,
-      title: "Monitoreo intensificado",
-      description: "Medir presion arterial semanalmente. Considerar automonitoreo en casa.",
+      title: "Monitoreo ambulatorio",
+      description: "Medir presion arterial 2 a 3 veces por semana y registrar resultados.",
     },
     {
-      icon: Stethoscope,
-      title: "Consultas mas frecuentes",
-      description: "Programar visitas prenatales cada 2 semanas para seguimiento.",
+      icon: Calendar,
+      title: "Frecuencia de chequeo",
+      description: "Programar consultas de seguimiento cada 2 semanas (14 dias).",
     },
     {
       icon: Salad,
-      title: "Cambios en estilo de vida",
-      description: "Reducir consumo de sal, aumentar actividad fisica suave y descanso adecuado.",
+      title: "Prevencion activa",
+      description: "Reducir sal, asegurar hidratacion y mantener reposo nocturno adecuado.",
     },
     {
-      icon: BedDouble,
-      title: "Seguimiento medico",
-      description: "Reportar cualquier sintoma inusual: dolor de cabeza, vision borrosa.",
+      icon: Stethoscope,
+      title: "Reevaluacion clinica",
+      description: "Adelantar valoracion si la presion sube o aparecen sintomas de alarma.",
     },
   ],
   MEDIO: [
     {
       icon: HeartPulse,
-      title: "Monitoreo diario de presion",
-      description: "Medir presion arterial diariamente y registrar valores.",
+      title: "Monitoreo diario",
+      description: "Medir presion arterial todos los dias y registrar al menos 2 tomas.",
+    },
+    {
+      icon: Calendar,
+      title: "Frecuencia de chequeo",
+      description: "Programar control clinico semanal (cada 7 dias).",
     },
     {
       icon: Stethoscope,
       title: "Seguimiento especializado",
-      description: "Derivar a especialista en medicina materno-fetal de forma prioritaria.",
+      description: "Coordinar valoracion por medicina materno-fetal en consulta prioritaria.",
     },
     {
       icon: Activity,
-      title: "Vigilancia de sintomas",
-      description: "Estar alerta a sintomas de alarma: cefalea intensa, alteraciones visuales, dolor epigastrico.",
-    },
-    {
-      icon: Calendar,
-      title: "Consultas semanales",
-      description: "Programar evaluaciones semanales con el equipo medico.",
+      title: "Vigilancia de alarma",
+      description: "Si presenta cefalea intensa, fosfenos, dolor epigastrico o edema brusco, acudir de inmediato.",
     },
   ],
   ALTO: [
     {
       icon: HeartPulse,
-      title: "Monitoreo continuo",
-      description: "Monitoreo hospitalario de presion arterial y bienestar fetal.",
-    },
-    {
-      icon: Stethoscope,
-      title: "Evaluacion urgente",
-      description: "Evaluacion inmediata por especialista en medicina materno-fetal.",
-    },
-    {
-      icon: Activity,
-      title: "Hospitalizacion recomendada",
-      description: "Considerar hospitalizacion para vigilancia continua.",
+      title: "Monitoreo estrecho",
+      description: "Medir presion arterial minimo 2 veces al dia, con bitacora de sintomas.",
     },
     {
       icon: Calendar,
-      title: "Planificacion del parto",
-      description: "Evaluar adelanto del parto segun condicion clinica.",
+      title: "Frecuencia de chequeo",
+      description: "Control presencial cada 7 dias como maximo, o antes si hay empeoramiento.",
+    },
+    {
+      icon: Stethoscope,
+      title: "Evaluacion prioritaria",
+      description: "Seguimiento por especialista en medicina materno-fetal y ajuste de plan terapeutico.",
+    },
+    {
+      icon: BedDouble,
+      title: "Plan de contingencia",
+      description: "Definir criterios de referencia a urgencias y posible hospitalizacion segun evolucion.",
+    },
+  ],
+  HOSPITALIZACION: [
+    {
+      icon: BedDouble,
+      title: "Hospitalizacion urgente",
+      description: "Ingresar de inmediato para vigilancia materna y fetal continua.",
+    },
+    {
+      icon: HeartPulse,
+      title: "Monitoreo intrahospitalario",
+      description: "Control de presion arterial y signos vitales cada 4 a 6 horas o segun protocolo.",
+    },
+    {
+      icon: Calendar,
+      title: "Frecuencia de reevaluacion",
+      description: "Reevaluacion clinica por el equipo tratante al menos 1 vez por turno.",
+    },
+    {
+      icon: Stethoscope,
+      title: "Plan obstetrico inmediato",
+      description: "Definir conducta terapeutica y momento de resolucion obstetrica segun estabilidad clinica.",
     },
   ],
 }
@@ -132,6 +160,11 @@ const riskStyles = {
     iconBg: "bg-risk-high/15",
     iconColor: "text-risk-high",
   },
+  HOSPITALIZACION: {
+    badge: "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/25 dark:text-red-300 dark:border-red-700",
+    iconBg: "bg-red-100 dark:bg-red-900/25",
+    iconColor: "text-red-700 dark:text-red-300",
+  },
 }
 
 const riskLabels = {
@@ -139,16 +172,27 @@ const riskLabels = {
   BAJO: "Bajo",
   MEDIO: "Medio",
   ALTO: "Alto",
+  HOSPITALIZACION: "Hospitalizacion urgente",
 }
 
 const normalizeBackendRisk = (riesgo: string): BackendRisk => {
-  switch ((riesgo || "NINGUNO").toUpperCase()) {
-    case "BAJO":
-      return "BAJO"
-    case "MEDIO":
-      return "MEDIO"
+  const rawRisk = (riesgo || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase()
+
+  if (rawRisk === "BAJO") {
+    return "BAJO"
+  }
+
+  switch (normalizeClinicalRisk(rawRisk)) {
+    case "HOSPITALIZACION":
+      return "HOSPITALIZACION"
     case "ALTO":
       return "ALTO"
+    case "MEDIO":
+      return "MEDIO"
     case "NINGUNO":
     default:
       return "NINGUNO"

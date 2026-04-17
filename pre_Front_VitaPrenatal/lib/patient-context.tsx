@@ -10,7 +10,7 @@ import { extractDateTimeInMexico, getDateTimeSortKey } from "@/lib/mexico-time"
 import { normalizeClinicalRisk } from "@/lib/risk-normalization"
 import { mapPatientFormToCreatePayload } from "@/servicios/pacienteMapper"
 
-export type RiskLevel = "none" | "low" | "moderate" | "high"
+export type RiskLevel = "none" | "low" | "moderate" | "high" | "hospitalization"
 
 function mapApiRisk(riesgo: string): RiskLevel {
   switch (normalizeClinicalRisk(riesgo)) {
@@ -19,8 +19,9 @@ function mapApiRisk(riesgo: string): RiskLevel {
     case "MEDIO":
       return "moderate"
     case "ALTO":
-    case "HOSPITALIZACION":
       return "high"
+    case "HOSPITALIZACION":
+      return "hospitalization"
     default:
       return "none"
   }

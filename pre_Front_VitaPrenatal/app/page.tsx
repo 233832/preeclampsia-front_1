@@ -51,6 +51,8 @@ function mapContextRiskToBackendRisk(level: ContextRiskLevel): BackendRisk {
       return "MEDIO"
     case "high":
       return "ALTO"
+    case "hospitalization":
+      return "HOSPITALIZACION"
     default:
       return "NINGUNO"
   }
@@ -61,8 +63,9 @@ function mapApiRiskToContextRisk(riesgo: string | undefined): ContextRiskLevel {
     case "MEDIO":
       return "moderate"
     case "ALTO":
-    case "HOSPITALIZACION":
       return "high"
+    case "HOSPITALIZACION":
+      return "hospitalization"
     case "NINGUNO":
     default:
       return "none"
