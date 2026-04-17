@@ -226,121 +226,124 @@ export function PatientNotesCard({ consultationId, patientId }: PatientNotesCard
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-3">
-          <Textarea
-            value={nuevaNota}
-            onChange={(e) => setNuevaNota(e.target.value)}
-            placeholder="Escribe observaciones o sintomas..."
-            className="min-h-[110px] resize-none"
-          />
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              {nuevaNota.length > 0 ? `${nuevaNota.length} caracteres` : "Sin contenido"}
-            </p>
-            <Button onClick={handleSaveNota} disabled={!canSave} className="gap-2">
-              {savingNota ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Guardar nota
-            </Button>
-          </div>
-        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4">
+            <h4 className="text-sm font-semibold">Notas registradas</h4>
+            <ScrollArea className="h-[320px] pr-2">
+              <div className="space-y-3">
+                {loadingNotas && (
+                  <div className="rounded-lg border border-border/60 p-3 text-sm text-muted-foreground">
+                    Cargando notas...
+                  </div>
+                )}
 
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold">Notas registradas</h4>
-          <ScrollArea className="h-[240px] pr-2">
-            <div className="space-y-3">
-              {loadingNotas && (
-                <div className="rounded-lg border border-border/60 p-3 text-sm text-muted-foreground">
-                  Cargando notas...
-                </div>
-              )}
+                {!loadingNotas && notas.length === 0 && (
+                  <div className="rounded-lg border border-border/60 p-3 text-sm text-muted-foreground">
+                    No hay notas registradas para esta consulta.
+                  </div>
+                )}
 
-              {!loadingNotas && notas.length === 0 && (
-                <div className="rounded-lg border border-border/60 p-3 text-sm text-muted-foreground">
-                  No hay notas registradas para esta consulta.
-                </div>
-              )}
+                {!loadingNotas &&
+                  notas.map((nota) => {
+                    const isEditing = editandoId === nota.id
+                    const isDeleting = deletingNotaId === nota.id
+                    const isSavingEdit = savingEditId === nota.id
+                    const disableActions = savingNota || loadingNotas || isSavingEdit
 
-              {!loadingNotas &&
-                notas.map((nota) => {
-                  const isEditing = editandoId === nota.id
-                  const isDeleting = deletingNotaId === nota.id
-                  const isSavingEdit = savingEditId === nota.id
-                  const disableActions = savingNota || loadingNotas || isSavingEdit
-
-                  return (
-                    <div
-                      key={nota.id}
-                      className={`rounded-lg border bg-card p-3 shadow-sm space-y-2 ${
-                        isEditing ? "border-primary/50 ring-1 ring-primary/20" : "border-border/60"
-                      }`}
-                    >
-                      {isEditing ? (
-                        <Textarea
-                          value={textoEditado}
-                          onChange={(e) => setTextoEditado(e.target.value)}
-                          className="w-full min-h-[90px] resize-none"
-                          placeholder="Edita el contenido de la nota..."
-                        />
-                      ) : (
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{nota.contenido}</p>
-                      )}
-
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs text-muted-foreground">{formatNoteDate(nota.fecha_creacion)}</span>
-
+                    return (
+                      <div
+                        key={nota.id}
+                        className={`rounded-lg border bg-card p-3 shadow-sm space-y-2 ${
+                          isEditing ? "border-primary/50 ring-1 ring-primary/20" : "border-border/60"
+                        }`}
+                      >
                         {isEditing ? (
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              className="h-7 px-2 text-xs"
-                              onClick={() => guardarEdicion(nota.id)}
-                              disabled={isSavingEdit}
-                            >
-                              {isSavingEdit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar cambios"}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-2 text-xs"
-                              onClick={cancelarEdicion}
-                              disabled={isSavingEdit}
-                            >
-                              <X className="h-3.5 w-3.5" />
-                              Cancelar
-                            </Button>
-                          </div>
+                          <Textarea
+                            value={textoEditado}
+                            onChange={(e) => setTextoEditado(e.target.value)}
+                            className="w-full min-h-[90px] resize-none"
+                            placeholder="Edita el contenido de la nota..."
+                          />
                         ) : (
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-primary/80 hover:text-primary"
-                              onClick={() => iniciarEdicion(nota)}
-                              disabled={disableActions || editandoId !== null}
-                            >
-                              <PencilLine className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteNota(nota.id)}
-                              disabled={isDeleting || editandoId !== null}
-                            >
-                              {isDeleting ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{nota.contenido}</p>
                         )}
+
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-muted-foreground">{formatNoteDate(nota.fecha_creacion)}</span>
+
+                          {isEditing ? (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => guardarEdicion(nota.id)}
+                                disabled={isSavingEdit}
+                              >
+                                {isSavingEdit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Guardar cambios"}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={cancelarEdicion}
+                                disabled={isSavingEdit}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                                Cancelar
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-primary/80 hover:text-primary"
+                                onClick={() => iniciarEdicion(nota)}
+                                disabled={disableActions || editandoId !== null}
+                              >
+                                <PencilLine className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteNota(nota.id)}
+                                disabled={isDeleting || editandoId !== null}
+                              >
+                                {isDeleting ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4">
+            <h4 className="text-sm font-semibold">Escribir nota</h4>
+            <Textarea
+              value={nuevaNota}
+              onChange={(e) => setNuevaNota(e.target.value)}
+              placeholder="Escribe observaciones o sintomas..."
+              className="min-h-[220px] resize-none"
+            />
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                {nuevaNota.length > 0 ? `${nuevaNota.length} caracteres` : "Sin contenido"}
+              </p>
+              <Button onClick={handleSaveNota} disabled={!canSave} className="gap-2">
+                {savingNota ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Guardar nota
+              </Button>
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -21,10 +21,12 @@ import { RiskIndicatorCard } from "@/components/dashboard/risk-indicator-card"
 import { VitalSignsChart } from "@/components/dashboard/vital-signs-chart"
 import { BloodPressureInputCard } from "@/components/dashboard/blood-pressure-input-card"
 import { RecommendationsCard } from "@/components/dashboard/recommendations-card"
+import { MedicationRecommendationsCard } from "@/components/dashboard/medication-recommendations-card"
 import { PatientNotesCard } from "@/components/dashboard/patient-notes-card"
 import { ConsultationHistoryCard } from "@/components/dashboard/consultation-history-card"
 import { ReportDownloadCard } from "@/components/dashboard/report-download-card"
 import { ConsultationForm } from "@/components/patients/consultation-form"
+import { useMedicacion } from "@/hooks/use-medicacion"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/toaster"
@@ -124,6 +126,21 @@ export default function VitaPrenatalMonitoreoClinico() {
   const [openingPdfConsultationId, setOpeningPdfConsultationId] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState(() => getCurrentMexicoDateTimeLabel())
   const latestConsultationRequestId = useRef(0)
+
+  const consultationForMedication = selectedConsultation ?? selectedPatient?.consultations[0] ?? null
+  const medicationRiskInput = prediction?.riesgo
+    ?? consultationDetails?.riesgo
+    ?? (consultationForMedication ? mapContextRiskToBackendRisk(consultationForMedication.riskLevel) : "NINGUNO")
+
+  const {
+    data: medicationData,
+    loading: medicationLoading,
+    error: medicationError,
+    invalidRiskMessage: medicationInvalidRiskMessage,
+    refetch: refetchMedicacion,
+  } = useMedicacion(medicationRiskInput, {
+    enabled: Boolean(consultationForMedication),
+  })
 
   const syncConsultationInContext = (consultationId: string, consultationFromApi: ApiConsulta) => {
     if (!selectedPatient) {
@@ -588,9 +605,16 @@ export default function VitaPrenatalMonitoreoClinico() {
                 color="oklch(0.70 0.12 340)"
               />
             </div>
+
+            <ReportDownloadCard
+              consultationId={consultation.id}
+              isAvailable={reportIsAvailable}
+              onDownloadReport={handleOpenReportPdf}
+              downloadingConsultationId={openingPdfConsultationId}
+            />
           </div>
 
-          {/* Right Column - Recommendations and Notes */}
+          {/* Right Column - Recommendations and Medication */}
           <div className="md:col-span-2 xl:col-span-4 space-y-6">
             <RecommendationsCard 
               riesgo={currentRiskData.riesgo}
@@ -600,14 +624,20 @@ export default function VitaPrenatalMonitoreoClinico() {
               canGeneratePrediction={canGeneratePrediction}
             />
 
-            <ReportDownloadCard
-              consultationId={consultation.id}
-              isAvailable={reportIsAvailable}
-              onDownloadReport={handleOpenReportPdf}
-              downloadingConsultationId={openingPdfConsultationId}
+            <MedicationRecommendationsCard
+              loading={medicationLoading}
+              error={medicationError}
+              invalidRiskMessage={medicationInvalidRiskMessage}
+              data={medicationData}
+              onRetry={() => {
+                void refetchMedicacion()
+              }}
             />
+          </div>
 
-            <PatientNotesCard 
+          {/* Bottom Row - Full Width Notes */}
+          <div className="md:col-span-2 xl:col-span-12">
+            <PatientNotesCard
               consultationId={consultation.id}
               patientId={consultationDetails?.paciente_id || null}
             />

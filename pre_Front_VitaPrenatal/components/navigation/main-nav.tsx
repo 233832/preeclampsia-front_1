@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
+  ArrowLeft,
   Heart,
   LayoutDashboard,
   Users,
@@ -11,9 +12,11 @@ import {
   Settings,
   RefreshCw,
   Calendar,
+  LogOut,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useConfiguration } from "@/lib/configuration-context"
+import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
 
 const navItems = [
@@ -47,11 +50,29 @@ export function MainNav({
   const pathname = usePathname()
   const router = useRouter()
   const { notifications } = useConfiguration()
+  const { logout, loading: authLoading } = useAuth()
 
   const unreadCount = notifications.length
 
   const notificationsActive = pathname === "/notificaciones"
   const settingsActive = pathname === "/configuraciones"
+  const showBackButton = pathname !== "/"
+
+  const handleGoBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back()
+      return
+    }
+
+    const currentTabIndex = navItems.findIndex((item) => item.href === pathname)
+
+    if (currentTabIndex > 0) {
+      router.push(navItems[currentTabIndex - 1].href)
+      return
+    }
+
+    router.push("/")
+  }
 
   return (
     <header className="border-b border-border/50 bg-card/80 backdrop-blur-sm sticky top-0 z-50">
@@ -74,6 +95,20 @@ export function MainNav({
 
           {/* Navigation Links */}
           <nav className="flex items-center gap-1">
+            {showBackButton && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleGoBack}
+                className="gap-2"
+                aria-label="Retroceder"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="hidden sm:inline">Atrás</span>
+              </Button>
+            )}
+
             {navItems.map((item) => {
               const isActive = pathname === item.href
               return (
@@ -144,6 +179,19 @@ export function MainNav({
                 <Link href="/configuraciones" aria-label="Abrir configuraciones">
                     <Settings className="h-5 w-5" />
                 </Link>
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Cerrar sesion"
+                disabled={authLoading}
+                onClick={() => {
+                  void logout()
+                }}
+              >
+                <LogOut className="h-5 w-5" />
               </Button>
             </div>
           )}

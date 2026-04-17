@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Eye, Pencil, Trash2, Users } from "lucide-react"
+import { Pencil, Trash2, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatDateInMexico } from "@/lib/mexico-time"
 
@@ -114,7 +114,11 @@ export function PatientsTable({ patients, onView, onEdit, onDelete }: PatientsTa
                   : riskConfig.none
                 
                 return (
-                  <TableRow key={patient.id} className="hover:bg-muted/30">
+                  <TableRow
+                    key={patient.id}
+                    className="hover:bg-muted/30 cursor-pointer"
+                    onClick={() => onView(patient)}
+                  >
                     <TableCell className="font-medium">{patient.name}</TableCell>
                     <TableCell className="text-center">{patient.age} años</TableCell>
                     <TableCell className="text-center">
@@ -147,17 +151,11 @@ export function PatientsTable({ patients, onView, onEdit, onDelete }: PatientsTa
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
-                          onClick={() => onView(patient)}
-                          title="Ver en Monitoreo Clínico"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          onClick={() => onEdit(patient)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onEdit(patient)
+                          }}
                           title="Editar"
                         >
                           <Pencil className="h-4 w-4" />
@@ -168,6 +166,7 @@ export function PatientsTable({ patients, onView, onEdit, onDelete }: PatientsTa
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => e.stopPropagation()}
                               title="Eliminar"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -183,7 +182,10 @@ export function PatientsTable({ patients, onView, onEdit, onDelete }: PatientsTa
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
                               <AlertDialogAction
-                                onClick={() => onDelete(patient.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onDelete(patient.id)
+                                }}
                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                               >
                                 Eliminar

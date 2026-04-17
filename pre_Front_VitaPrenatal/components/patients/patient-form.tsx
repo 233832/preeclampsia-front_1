@@ -362,14 +362,19 @@ export function PatientForm({
                 <Label htmlFor="age">Edad *</Label>
                 <Input
                   id="age"
-                  type="number"
-                  min={15}
-                  max={55}
-                  value={formData.age}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={formData.age === 0 ? "" : String(formData.age)}
                   onChange={(e) => {
                     clearFieldError("age")
-                    setFormData({ ...formData, age: Number(e.target.value) })
+                    const onlyDigits = e.target.value.replace(/\D/g, "")
+                    setFormData({
+                      ...formData,
+                      age: onlyDigits ? Number(onlyDigits) : 0,
+                    })
                   }}
+                  placeholder="25"
                   required
                 />
                 {fieldErrors.age && (
@@ -581,15 +586,17 @@ export function PatientForm({
                         <Label htmlFor="abortos_previos_edit">Abortos previos</Label>
                         <Input
                           id="abortos_previos_edit"
-                          type="number"
-                          min={0}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           disabled={antecedentsLocked}
-                          value={formData.abortos_previos}
+                          value={String(formData.abortos_previos)}
                           onChange={(e) => {
                             clearFieldError("abortos_previos")
+                            const onlyDigits = e.target.value.replace(/\D/g, "")
                             setFormData({
                               ...formData,
-                              abortos_previos: Math.max(0, Number(e.target.value) || 0),
+                              abortos_previos: onlyDigits ? Number(onlyDigits) : 0,
                             })
                           }}
                         />
@@ -601,15 +608,17 @@ export function PatientForm({
                         <Label htmlFor="cesarea_previos_edit">Cesareas previas</Label>
                         <Input
                           id="cesarea_previos_edit"
-                          type="number"
-                          min={0}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           disabled={antecedentsLocked}
-                          value={formData.cesarea_previos}
+                          value={String(formData.cesarea_previos)}
                           onChange={(e) => {
                             clearFieldError("cesarea_previos")
+                            const onlyDigits = e.target.value.replace(/\D/g, "")
                             setFormData({
                               ...formData,
-                              cesarea_previos: Math.max(0, Number(e.target.value) || 0),
+                              cesarea_previos: onlyDigits ? Number(onlyDigits) : 0,
                             })
                           }}
                         />
@@ -621,15 +630,17 @@ export function PatientForm({
                         <Label htmlFor="embarazos_previos_edit">Embarazos previos</Label>
                         <Input
                           id="embarazos_previos_edit"
-                          type="number"
-                          min={0}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           disabled={antecedentsLocked}
-                          value={formData.embarazos_previos}
+                          value={String(formData.embarazos_previos)}
                           onChange={(e) => {
                             clearFieldError("embarazos_previos")
+                            const onlyDigits = e.target.value.replace(/\D/g, "")
                             setFormData({
                               ...formData,
-                              embarazos_previos: Math.max(0, Number(e.target.value) || 0),
+                              embarazos_previos: onlyDigits ? Number(onlyDigits) : 0,
                             })
                           }}
                         />
@@ -641,15 +652,17 @@ export function PatientForm({
                         <Label htmlFor="partos_previos_edit">Partos previos</Label>
                         <Input
                           id="partos_previos_edit"
-                          type="number"
-                          min={0}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           disabled={antecedentsLocked}
-                          value={formData.partos_previos}
+                          value={String(formData.partos_previos)}
                           onChange={(e) => {
                             clearFieldError("partos_previos")
+                            const onlyDigits = e.target.value.replace(/\D/g, "")
                             setFormData({
                               ...formData,
-                              partos_previos: Math.max(0, Number(e.target.value) || 0),
+                              partos_previos: onlyDigits ? Number(onlyDigits) : 0,
                             })
                           }}
                         />
@@ -723,11 +736,14 @@ export function PatientForm({
                     <Label htmlFor="gestationalWeek">Semana gestacion *</Label>
                     <Input
                       id="gestationalWeek"
-                      type="number"
-                      min={1}
-                      max={42}
-                      value={formData.gestationalWeek}
-                      onChange={(e) => setFormData({ ...formData, gestationalWeek: Number(e.target.value) })}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={formData.gestationalWeek === 0 ? "" : String(formData.gestationalWeek)}
+                      onChange={(e) => {
+                        const onlyDigits = e.target.value.replace(/\D/g, "")
+                        setFormData({ ...formData, gestationalWeek: onlyDigits ? Number(onlyDigits) : 0 })
+                      }}
                       required
                     />
                   </div>
@@ -735,12 +751,17 @@ export function PatientForm({
                     <Label htmlFor="weight">Peso (kg) *</Label>
                     <Input
                       id="weight"
-                      type="number"
-                      min={30}
-                      max={200}
-                      step={0.1}
-                      value={formData.weight}
-                      onChange={(e) => setFormData({ ...formData, weight: Number(e.target.value) })}
+                      type="text"
+                      inputMode="decimal"
+                      pattern="[0-9]*[.]?[0-9]*"
+                      value={formData.weight === 0 ? "" : String(formData.weight)}
+                      onChange={(e) => {
+                        const decimalValue = e.target.value
+                          .replace(",", ".")
+                          .replace(/[^0-9.]/g, "")
+                          .replace(/(\..*)\./g, "$1")
+                        setFormData({ ...formData, weight: decimalValue ? Number(decimalValue) : 0 })
+                      }}
                       required
                     />
                   </div>
@@ -748,11 +769,14 @@ export function PatientForm({
                     <Label htmlFor="height">Altura (cm) *</Label>
                     <Input
                       id="height"
-                      type="number"
-                      min={100}
-                      max={220}
-                      value={formData.height}
-                      onChange={(e) => setFormData({ ...formData, height: Number(e.target.value) })}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={formData.height === 0 ? "" : String(formData.height)}
+                      onChange={(e) => {
+                        const onlyDigits = e.target.value.replace(/\D/g, "")
+                        setFormData({ ...formData, height: onlyDigits ? Number(onlyDigits) : 0 })
+                      }}
                       required
                     />
                   </div>
@@ -770,11 +794,14 @@ export function PatientForm({
                     <Label htmlFor="systolic">Sistolica (mmHg) *</Label>
                     <Input
                       id="systolic"
-                      type="number"
-                      min={70}
-                      max={200}
-                      value={formData.systolic}
-                      onChange={(e) => setFormData({ ...formData, systolic: Number(e.target.value) })}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={formData.systolic === 0 ? "" : String(formData.systolic)}
+                      onChange={(e) => {
+                        const onlyDigits = e.target.value.replace(/\D/g, "")
+                        setFormData({ ...formData, systolic: onlyDigits ? Number(onlyDigits) : 0 })
+                      }}
                       required
                     />
                   </div>
@@ -782,11 +809,14 @@ export function PatientForm({
                     <Label htmlFor="diastolic">Diastolica (mmHg) *</Label>
                     <Input
                       id="diastolic"
-                      type="number"
-                      min={40}
-                      max={130}
-                      value={formData.diastolic}
-                      onChange={(e) => setFormData({ ...formData, diastolic: Number(e.target.value) })}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={formData.diastolic === 0 ? "" : String(formData.diastolic)}
+                      onChange={(e) => {
+                        const onlyDigits = e.target.value.replace(/\D/g, "")
+                        setFormData({ ...formData, diastolic: onlyDigits ? Number(onlyDigits) : 0 })
+                      }}
                       required
                     />
                   </div>
@@ -894,14 +924,16 @@ export function PatientForm({
                         <Label htmlFor="abortos_previos">Abortos previos</Label>
                         <Input
                           id="abortos_previos"
-                          type="number"
-                          min={0}
-                          value={formData.abortos_previos}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={String(formData.abortos_previos)}
                           onChange={(e) => {
                             clearFieldError("abortos_previos")
+                            const onlyDigits = e.target.value.replace(/\D/g, "")
                             setFormData({
                               ...formData,
-                              abortos_previos: Math.max(0, Number(e.target.value) || 0),
+                              abortos_previos: onlyDigits ? Number(onlyDigits) : 0,
                             })
                           }}
                         />
@@ -913,14 +945,16 @@ export function PatientForm({
                         <Label htmlFor="cesarea_previos">Cesareas previas</Label>
                         <Input
                           id="cesarea_previos"
-                          type="number"
-                          min={0}
-                          value={formData.cesarea_previos}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={String(formData.cesarea_previos)}
                           onChange={(e) => {
                             clearFieldError("cesarea_previos")
+                            const onlyDigits = e.target.value.replace(/\D/g, "")
                             setFormData({
                               ...formData,
-                              cesarea_previos: Math.max(0, Number(e.target.value) || 0),
+                              cesarea_previos: onlyDigits ? Number(onlyDigits) : 0,
                             })
                           }}
                         />
@@ -932,14 +966,16 @@ export function PatientForm({
                         <Label htmlFor="embarazos_previos">Embarazos previos</Label>
                         <Input
                           id="embarazos_previos"
-                          type="number"
-                          min={0}
-                          value={formData.embarazos_previos}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={String(formData.embarazos_previos)}
                           onChange={(e) => {
                             clearFieldError("embarazos_previos")
+                            const onlyDigits = e.target.value.replace(/\D/g, "")
                             setFormData({
                               ...formData,
-                              embarazos_previos: Math.max(0, Number(e.target.value) || 0),
+                              embarazos_previos: onlyDigits ? Number(onlyDigits) : 0,
                             })
                           }}
                         />
@@ -951,14 +987,16 @@ export function PatientForm({
                         <Label htmlFor="partos_previos">Partos previos</Label>
                         <Input
                           id="partos_previos"
-                          type="number"
-                          min={0}
-                          value={formData.partos_previos}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={String(formData.partos_previos)}
                           onChange={(e) => {
                             clearFieldError("partos_previos")
+                            const onlyDigits = e.target.value.replace(/\D/g, "")
                             setFormData({
                               ...formData,
-                              partos_previos: Math.max(0, Number(e.target.value) || 0),
+                              partos_previos: onlyDigits ? Number(onlyDigits) : 0,
                             })
                           }}
                         />

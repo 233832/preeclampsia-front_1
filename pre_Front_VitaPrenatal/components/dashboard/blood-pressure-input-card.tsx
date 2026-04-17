@@ -89,6 +89,7 @@ export function BloodPressureInputCard({
     hypertensionDiastolicThreshold,
   )
   const config = classificationConfig[classification]
+  const calculatedPam = Number(((systolic + 2 * diastolic) / 3).toFixed(1))
 
   return (
     <Card className="border-border/50 shadow-sm">
@@ -128,6 +129,17 @@ export function BloodPressureInputCard({
               className="text-lg font-semibold text-center h-12"
             />
           </div>
+        </div>
+
+        <div className="rounded-lg border border-primary/20 bg-primary/10 p-3 text-center">
+          <p className="text-xs text-muted-foreground">Presion Arterial Media (PAM)</p>
+          <div className="mt-1 flex items-center justify-center gap-2">
+            <p className="text-3xl font-bold text-primary leading-none">{calculatedPam}</p>
+            <Badge variant="outline" className="border-primary/40 text-primary text-[11px]">
+              mmHg
+            </Badge>
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">PAM = (PS + (2 x PD)) / 3</p>
         </div>
 
         {/* Classification Display */}

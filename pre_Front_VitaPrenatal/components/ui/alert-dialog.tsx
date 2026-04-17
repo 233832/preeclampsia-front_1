@@ -82,7 +82,7 @@ function AlertDialogContent({
       <div
         data-slot="alert-dialog-content"
         className={cn(
-          'relative z-50 w-full max-w-lg rounded-lg border bg-background p-6 shadow-lg',
+          'relative z-50 w-full max-w-lg rounded-lg border bg-background p-6 shadow-lg whitespace-normal break-words',
           className,
         )}
         onClick={stopPropagation}
@@ -108,7 +108,7 @@ function AlertDialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDiv
   return (
     <div
       data-slot="alert-dialog-footer"
-      className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
+      className={cn('mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
       {...props}
     />
   )
@@ -131,7 +131,7 @@ function AlertDialogDescription({
   return (
     <p
       data-slot="alert-dialog-description"
-      className={cn('text-muted-foreground text-sm', className)}
+      className={cn('text-muted-foreground text-sm leading-relaxed whitespace-normal break-words', className)}
       {...props}
     />
   )
