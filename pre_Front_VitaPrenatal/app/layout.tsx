@@ -1,18 +1,12 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Source_Sans_3 } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
-import { PatientProvider } from '@/lib/patient-context'
-import { ConfigurationProvider } from '@/lib/configuration-context'
+import { AppShellProvider } from '@/components/providers/app-shell-provider'
 import './globals.css'
 
 const inter = Inter({ 
   subsets: ["latin"],
   variable: '--font-inter'
-});
-
-const sourceSans = Source_Sans_3({ 
-  subsets: ["latin"],
-  variable: '--font-source-sans'
 });
 
 export const metadata: Metadata = {
@@ -31,12 +25,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${inter.variable} ${sourceSans.variable} font-sans antialiased`}>
-        <PatientProvider>
-          <ConfigurationProvider>
-            {children}
-          </ConfigurationProvider>
-        </PatientProvider>
+      <body className={`${inter.variable} font-sans antialiased`}>
+        <AppShellProvider>{children}</AppShellProvider>
         <Analytics />
       </body>
     </html>

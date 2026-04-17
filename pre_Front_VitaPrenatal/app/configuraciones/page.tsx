@@ -25,8 +25,12 @@ const CRITICAS_KEYS = ["criticas", "críticas"] as const
 const ADVERTENCIAS_KEYS = ["advertencias"] as const
 const INFORMATIVAS_KEYS = ["informativas"] as const
 
-const SEGUIMIENTO_BAJO_KEYS = [
-  "frecuencia_bajo",
+const SEGUIMIENTO_NINGUNO_KEYS = [
+  "frecuencia_ninguno",
+  "seguimiento_riesgo_ninguno_dias",
+  "seguimiento_ninguno_dias",
+  "riesgo_ninguno_dias",
+  "dias_riesgo_ninguno",
   "seguimiento_riesgo_bajo_dias",
   "seguimiento_bajo_dias",
   "riesgo_bajo_dias",
@@ -62,7 +66,7 @@ const DEFAULT_CONFIG_VALUES = {
   umbral_sistolico: 140,
   umbral_diastolico: 90,
   notificaciones_activas: true,
-  seguimiento_riesgo_bajo_dias: 30,
+  seguimiento_riesgo_ninguno_dias: 30,
   seguimiento_riesgo_medio_dias: 14,
   seguimiento_riesgo_alto_dias: 7,
   nombre_sistema: "VitaPrenatal",
@@ -81,7 +85,7 @@ interface ConfiguracionFormState {
   criticas: boolean
   advertencias: boolean
   informativas: boolean
-  seguimiento_riesgo_bajo_dias: string
+  seguimiento_riesgo_ninguno_dias: string
   seguimiento_riesgo_medio_dias: string
   seguimiento_riesgo_alto_dias: string
   nombre_sistema: string
@@ -100,7 +104,7 @@ const DEFAULT_FORM_STATE: ConfiguracionFormState = {
   criticas: DEFAULT_CONFIG_VALUES.criticas,
   advertencias: DEFAULT_CONFIG_VALUES.advertencias,
   informativas: DEFAULT_CONFIG_VALUES.informativas,
-  seguimiento_riesgo_bajo_dias: String(DEFAULT_CONFIG_VALUES.seguimiento_riesgo_bajo_dias),
+  seguimiento_riesgo_ninguno_dias: String(DEFAULT_CONFIG_VALUES.seguimiento_riesgo_ninguno_dias),
   seguimiento_riesgo_medio_dias: String(DEFAULT_CONFIG_VALUES.seguimiento_riesgo_medio_dias),
   seguimiento_riesgo_alto_dias: String(DEFAULT_CONFIG_VALUES.seguimiento_riesgo_alto_dias),
   nombre_sistema: DEFAULT_CONFIG_VALUES.nombre_sistema,
@@ -224,11 +228,11 @@ function toFormState(data: ConfiguracionesPayload): ConfiguracionFormState {
     criticas: readBooleanValue(source, CRITICAS_KEYS, DEFAULT_CONFIG_VALUES.criticas),
     advertencias: readBooleanValue(source, ADVERTENCIAS_KEYS, DEFAULT_CONFIG_VALUES.advertencias),
     informativas: readBooleanValue(source, INFORMATIVAS_KEYS, DEFAULT_CONFIG_VALUES.informativas),
-    seguimiento_riesgo_bajo_dias: String(
+    seguimiento_riesgo_ninguno_dias: String(
       readNumberValue(
         source,
-        SEGUIMIENTO_BAJO_KEYS,
-        DEFAULT_CONFIG_VALUES.seguimiento_riesgo_bajo_dias,
+        SEGUIMIENTO_NINGUNO_KEYS,
+        DEFAULT_CONFIG_VALUES.seguimiento_riesgo_ninguno_dias,
       ),
     ),
     seguimiento_riesgo_medio_dias: String(
@@ -339,11 +343,11 @@ export default function ConfiguracionesPage() {
       return
     }
 
-    const seguimientoBajo = parseNonNegativeNumber(
-      formState.seguimiento_riesgo_bajo_dias,
-      "Seguimiento de riesgo bajo",
+    const seguimientoNinguno = parseNonNegativeNumber(
+      formState.seguimiento_riesgo_ninguno_dias,
+      "Seguimiento de riesgo ninguno",
     )
-    if (seguimientoBajo === null) {
+    if (seguimientoNinguno === null) {
       return
     }
 
@@ -395,7 +399,7 @@ export default function ConfiguracionesPage() {
       setValueForAliases(payload, CRITICAS_KEYS, formState.criticas)
       setValueForAliases(payload, ADVERTENCIAS_KEYS, formState.advertencias)
       setValueForAliases(payload, INFORMATIVAS_KEYS, formState.informativas)
-      setValueForAliases(payload, SEGUIMIENTO_BAJO_KEYS, seguimientoBajo)
+      setValueForAliases(payload, SEGUIMIENTO_NINGUNO_KEYS, seguimientoNinguno)
       setValueForAliases(payload, SEGUIMIENTO_MEDIO_KEYS, seguimientoMedio)
       setValueForAliases(payload, SEGUIMIENTO_ALTO_KEYS, seguimientoAlto)
       setValueForAliases(payload, NOMBRE_SISTEMA_KEYS, nombreSistema)
@@ -576,19 +580,19 @@ export default function ConfiguracionesPage() {
                   <CardContent>
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div className="space-y-1.5">
-                        <Label htmlFor="seguimiento-bajo" className="text-xs uppercase tracking-wide">
-                          Riesgo bajo
+                        <Label htmlFor="seguimiento-ninguno" className="text-xs uppercase tracking-wide">
+                          Riesgo ninguno
                         </Label>
                         <Input
-                          id="seguimiento-bajo"
+                          id="seguimiento-ninguno"
                           className="h-9"
                           type="number"
                           min={0}
-                          value={formState.seguimiento_riesgo_bajo_dias}
+                          value={formState.seguimiento_riesgo_ninguno_dias}
                           onChange={(event) =>
                             setFormState((prev) => ({
                               ...prev,
-                              seguimiento_riesgo_bajo_dias: event.target.value,
+                              seguimiento_riesgo_ninguno_dias: event.target.value,
                             }))
                           }
                         />

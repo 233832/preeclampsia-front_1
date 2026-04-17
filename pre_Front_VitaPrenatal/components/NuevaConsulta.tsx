@@ -18,14 +18,20 @@ export default function NuevaConsulta() {
     imc: 0,
     presion_sistolica: 0,
     presion_diastolica: 0,
+    pam: 0,
   });
 
   // 2. Tu lógica de envío (corregida)
   const manejarEnvio = async (e: React.FormEvent) => {
     e.preventDefault(); // Evita que la página se recargue
     try {
+      const pamCalculada = Number(((datosForm.presion_sistolica + (2 * datosForm.presion_diastolica)) / 3).toFixed(1));
+
       // A. Guardamos la consulta primero en el Back de Python
-      const nuevaConsulta = await consultaService.crear(datosForm);
+      const nuevaConsulta = await consultaService.crear({
+        ...datosForm,
+        pam: pamCalculada,
+      });
       console.log("Consulta guardada con ID:", nuevaConsulta.id);
 
       // B. La predicción se solicita únicamente desde el botón de IA en el dashboard.

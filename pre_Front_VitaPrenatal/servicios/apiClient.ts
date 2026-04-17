@@ -1,62 +1,35 @@
-function normalizeApiOrigin(value: string | undefined): string | null {
-  if (!value) {
-    return null
-  }
+import { buildApiUrl, shouldIncludeCredentials } from "@/lib/api-base-url"
+import { getAuthToken, notifyUnauthorized } from "@/lib/auth-token-store"
 
-  const trimmed = value.trim().replace(/\/+$/, "")
-  if (!trimmed) {
-    return null
-  }
-
-  return trimmed.endsWith("/api") ? trimmed.slice(0, -4) : trimmed
-}
-
-function unique(values: Array<string | null>): string[] {
-  const result: string[] = []
-
-  for (const value of values) {
-    if (!value || result.includes(value)) {
-      continue
-    }
-
-    result.push(value)
-  }
-
-  return result
-}
-
-const apiOrigins = unique([
-  normalizeApiOrigin(process.env.NEXT_PUBLIC_API_ORIGIN),
-  normalizeApiOrigin(process.env.NEXT_PUBLIC_API_URL),
-  "http://localhost:8000",
-  "http://127.0.0.1:8000",
-])
-
-export function buildApiUrl(path: string, origin = apiOrigins[0]): string {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`
-  return `${origin}${normalizedPath}`
-}
+export { buildApiUrl }
 
 export async function fetchApi(path: string, init?: RequestInit): Promise<Response> {
-  let lastNetworkError: unknown = null
+  const url = buildApiUrl(path)
+  const token = getAuthToken()
+  const includeCredentials = shouldIncludeCredentials()
+  const headers = new Headers(init?.headers)
 
-  for (const origin of apiOrigins) {
-    const url = buildApiUrl(path, origin)
-
-    try {
-      return await fetch(url, init)
-    } catch (error) {
-      lastNetworkError = error
-
-      if (!(error instanceof TypeError)) {
-        throw error
-      }
-
-      console.warn(`⚠️ No se pudo conectar con ${url}`)
-    }
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`)
   }
 
-  throw new Error(
-    `No se pudo conectar al backend. Hosts intentados: ${apiOrigins.join(", ")}`,
-  )
+  try {
+    const response = await fetch(url, {
+      ...init,
+      credentials: init?.credentials ?? (includeCredentials ? "include" : "omit"),
+      headers,
+    })
+
+    if (response.status === 401) {
+      notifyUnauthorized()
+    }
+
+    return response
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(`No se pudo conectar al backend en ${url}`)
+    }
+
+    throw error
+  }
 }

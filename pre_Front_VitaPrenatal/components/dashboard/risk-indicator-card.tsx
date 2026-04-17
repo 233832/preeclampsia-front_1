@@ -1,19 +1,24 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { AlertTriangle, ShieldCheck, AlertCircle, ShieldAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { normalizeClinicalRisk, NormalizedRisk } from "@/lib/risk-normalization"
 
-type BackendRisk = "NINGUNO" | "BAJO" | "MEDIO" | "ALTO"
+type BackendRisk = NormalizedRisk
 
 interface RiskIndicatorCardProps {
   data?: {
     riesgo?: string;
-    riesgo_ml?: string;
-    confianza_ml?: number | string;
-    score_total?: number | string;
+    riesgo_ml?: string | null;
+    riesgo_ml_modelo?: string | null;
+    confianza_ml?: number | string | null;
+    score_total?: number | string | null;
   }
   isLoading?: boolean
+  errorMessage?: string | null
+  onRetry?: () => void
 }
 
 const riskConfig = {
@@ -25,18 +30,10 @@ const riskConfig = {
     textColor: "text-muted-foreground",
     borderColor: "border-muted/70",
   },
-  BAJO: {
-    label: "BAJO",
-    icon: AlertCircle,
-    color: "#55efc4",
-    bgColor: "bg-risk-low/10",
-    textColor: "text-emerald-700",
-    borderColor: "border-emerald-300",
-  },
   MEDIO: {
     label: "MEDIO",
-    icon: AlertTriangle,
-    color: "#ffeaa7",
+    icon: AlertCircle,
+    color: "#facc15",
     bgColor: "bg-amber-100/60",
     textColor: "text-amber-700",
     borderColor: "border-amber-300",
@@ -44,67 +41,65 @@ const riskConfig = {
   ALTO: {
     label: "ALTO",
     icon: ShieldAlert,
-    color: "#ff7675",
+    color: "#f97316",
+    bgColor: "bg-orange-100/60",
+    textColor: "text-orange-700",
+    borderColor: "border-orange-300",
+  },
+  HOSPITALIZACION: {
+    label: "HOSPITALIZACION",
+    icon: AlertTriangle,
+    color: "#ef4444",
     bgColor: "bg-rose-100/60",
     textColor: "text-rose-700",
     borderColor: "border-rose-300",
   },
 }
 
-const trafficOrder: BackendRisk[] = ["NINGUNO", "BAJO", "MEDIO", "ALTO"]
-
-const normalizeBackendRisk = (riesgo: string): BackendRisk => {
-  switch ((riesgo || "NINGUNO").toUpperCase()) {
-    case "BAJO":
-      return "BAJO"
-    case "MEDIO":
-      return "MEDIO"
-    case "ALTO":
-      return "ALTO"
-    case "NINGUNO":
-    default:
-      return "NINGUNO"
-  }
-}
+const trafficOrder: BackendRisk[] = ["NINGUNO", "MEDIO", "ALTO", "HOSPITALIZACION"]
 
 function formatConfidence(value: number): string {
   const normalized = value > 0 && value <= 1 ? value * 100 : value
   return `${normalized.toFixed(2)}%`
 }
 
-export function RiskIndicatorCard({ data, isLoading = false }: RiskIndicatorCardProps) {
+function parseOptionalNumber(value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined) {
+    return null
+  }
+
+  const parsed = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+export function RiskIndicatorCard({
+  data,
+  isLoading = false,
+  errorMessage = null,
+  onRetry,
+}: RiskIndicatorCardProps) {
   const currentData = data ?? {}
+  const hasScore = currentData.score_total !== null && currentData.score_total !== undefined
+  const hasConfidence = currentData.confianza_ml !== null && currentData.confianza_ml !== undefined
 
-  const scoreValue =
-    typeof currentData.score_total === "number"
-      ? currentData.score_total
-      : typeof currentData.score_total === "string"
-        ? Number.parseFloat(currentData.score_total)
-        : null
-  const confidenceValue =
-    typeof currentData.confianza_ml === "number"
-      ? currentData.confianza_ml
-      : typeof currentData.confianza_ml === "string"
-        ? Number.parseFloat(currentData.confianza_ml)
-        : null
+  const scoreValue = parseOptionalNumber(currentData.score_total)
+  const confidenceValue = parseOptionalNumber(currentData.confianza_ml)
 
-  const safeScoreValue = Number.isFinite(scoreValue as number) ? scoreValue : null
-  const safeConfidenceValue = Number.isFinite(confidenceValue as number)
-    ? confidenceValue
-    : null
-
-  const baseRisk = normalizeBackendRisk(currentData.riesgo || "NINGUNO")
+  const baseRisk = normalizeClinicalRisk(currentData.riesgo || "NINGUNO")
   const riskLevel = baseRisk
-  const mlRisk = normalizeBackendRisk(currentData.riesgo_ml || currentData.riesgo || "NINGUNO")
+  const modelRiskDetail =
+    typeof currentData.riesgo_ml_modelo === "string" && currentData.riesgo_ml_modelo.trim()
+      ? currentData.riesgo_ml_modelo.trim().toUpperCase()
+      : null
 
-  const scoreText =
-    safeScoreValue === null ? (isLoading ? "Cargando..." : "Pendiente de backend") : safeScoreValue.toFixed(2)
-  const confidenceText =
-    isLoading && safeConfidenceValue === null
+  const scoreText = !hasScore
+    ? isLoading
       ? "Cargando..."
-      : safeConfidenceValue === null
-        ? "No disponible"
-        : formatConfidence(safeConfidenceValue)
+      : "Pendiente de backend"
+    : scoreValue === null
+      ? "Dato no disponible"
+      : scoreValue.toFixed(2)
+  const confidenceText = confidenceValue === null ? "No disponible" : formatConfidence(confidenceValue)
 
   const config = riskConfig[riskLevel]
   const Icon = config.icon
@@ -161,17 +156,17 @@ export function RiskIndicatorCard({ data, isLoading = false }: RiskIndicatorCard
         <div className={cn("flex items-center gap-2 px-4 py-2 rounded-full", config.bgColor)}>
           <Icon className={cn("h-5 w-5", config.textColor)} />
           <span className={cn("text-lg font-bold", config.textColor)}>
-            {config.label}
+            Riesgo principal: {config.label}
           </span>
         </div>
 
         <div className="text-center">
           <p className="text-xs text-muted-foreground">
-            ML: {mlRisk}
+            Detalle tecnico ML: {modelRiskDetail ?? "No disponible"}
           </p>
-          <p className="text-xs text-muted-foreground">
-            Confianza: {confidenceText}
-          </p>
+          {confidenceValue !== null && (
+            <p className="text-xs text-muted-foreground">Confianza ML: {confidenceText}</p>
+          )}
         </div>
 
         <div className="text-center">
@@ -184,6 +179,24 @@ export function RiskIndicatorCard({ data, isLoading = false }: RiskIndicatorCard
             </p>
           )}
         </div>
+
+        {errorMessage && (
+          <div className="w-full rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-center">
+            <p className="text-xs text-destructive">{errorMessage}</p>
+            {onRetry && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-2"
+                disabled={isLoading}
+                onClick={onRetry}
+              >
+                Reintentar
+              </Button>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   )
