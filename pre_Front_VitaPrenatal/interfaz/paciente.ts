@@ -19,6 +19,7 @@ export interface PacienteCreateRequest {
     antecedentes_familia_hipertension: boolean;
     fam_cardiopatia: boolean;
     enf_renal_cronica: boolean;
+    antecedente_preeclampsia_embarazo_previo: boolean;
     embarazo_multiple: boolean;
     muerte_fetal: boolean;
     restriccion_fetal: boolean;
@@ -50,6 +51,7 @@ export interface PacienteCreateFormInput {
     familyHypertensionHistory: boolean;
     fam_cardiopatia: boolean;
     enf_renal_cronica: boolean;
+    antecedentePreeclampsiaEmbarazoPrevio: boolean;
     embarazo_multiple: boolean;
     muerte_fetal: boolean;
     restriccion_fetal: boolean;

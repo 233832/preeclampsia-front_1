@@ -24,12 +24,33 @@ export async function updatePatient(id: number, datos: PacienteCreateRequest): P
     return await response.json();
 }
 
+export async function listPatients(skip: number = 0, limit: number = 100): Promise<PacienteResponse[]> {
+    const response = await fetchApi(`/api/pacientes/?skip=${skip}&limit=${limit}`);
+
+    await assertApiResponse(response, 'obtener pacientes');
+    return await response.json();
+}
+
+export async function deletePatient(id: number): Promise<void> {
+    const response = await fetchApi(`/api/pacientes/${id}`, {
+        method: 'DELETE',
+    });
+
+    await assertApiResponse(response, 'eliminar paciente');
+}
+
 export const pacienteService = {
     // Registrar nueva paciente
     crear: createPatient,
 
+    // Obtener lista de pacientes
+    listar: listPatients,
+
     // Actualizar paciente por ID
     actualizar: updatePatient,
+
+    // Eliminar paciente por ID
+    eliminar: deletePatient,
 
     // Obtener datos de una paciente específica
     obtenerPorId: async (id: number): Promise<PacienteResponse> => {

@@ -71,6 +71,7 @@ export function mapPatientFormToCreatePayload(
     antecedentes_familia_hipertension: Boolean(formData.familyHypertensionHistory),
     fam_cardiopatia: Boolean(formData.fam_cardiopatia),
     enf_renal_cronica: Boolean(formData.enf_renal_cronica),
+    antecedente_preeclampsia_embarazo_previo: Boolean(formData.antecedentePreeclampsiaEmbarazoPrevio),
     embarazo_multiple: Boolean(formData.embarazo_multiple),
     muerte_fetal: Boolean(formData.muerte_fetal),
     restriccion_fetal: Boolean(formData.restriccion_fetal),

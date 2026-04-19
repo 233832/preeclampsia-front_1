@@ -22,6 +22,7 @@ interface RecommendationsCardProps {
   riesgo: string
   interpretation?: string | null
   isLoadingInterpretation?: boolean
+  interpretationErrorMessage?: string | null
   onGeneratePrediction?: () => void
   canGeneratePrediction?: boolean
 }
@@ -106,13 +107,13 @@ const recommendationsByRisk = {
     },
     {
       icon: Stethoscope,
-      title: "Evaluacion prioritaria",
-      description: "Seguimiento por especialista en medicina materno-fetal y ajuste de plan terapeutico.",
+      title: "Revisión especializada",
+      description: "Valoración prioritaria por medicina materno-fetal para reevaluar riesgo y ajustar tratamiento.",
     },
     {
       icon: BedDouble,
-      title: "Plan de contingencia",
-      description: "Definir criterios de referencia a urgencias y posible hospitalizacion segun evolucion.",
+      title: "Escalamiento clínico",
+      description: "Activar la ruta de escalamiento definida por el servicio cuando existan datos de progresión clínica.",
     },
   ],
   HOSPITALIZACION: [
@@ -203,6 +204,7 @@ export function RecommendationsCard({
   riesgo,
   interpretation,
   isLoadingInterpretation = false,
+  interpretationErrorMessage = null,
   onGeneratePrediction,
   canGeneratePrediction = false,
 }: RecommendationsCardProps) {
@@ -214,12 +216,18 @@ export function RecommendationsCard({
   return (
     <Card className="border-border/50 shadow-sm">
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <CardTitle className="flex items-center gap-2 text-base font-semibold flex-wrap">
             <Sparkles className="h-4 w-4 text-primary flex-shrink-0" />
             <span>Recomendaciones</span>
           </CardTitle>
-          <Badge variant="outline" className={cn("text-xs flex-shrink-0", styles.badge)}>
+          <Badge
+            variant="outline"
+            className={cn(
+              "w-fit max-w-full self-start whitespace-normal text-xs sm:whitespace-nowrap",
+              styles.badge,
+            )}
+          >
             {riskLabels[currentRisk]}
           </Badge>
         </div>
@@ -234,16 +242,20 @@ export function RecommendationsCard({
           disabled={!canGeneratePrediction || isLoadingInterpretation}
         >
           {isLoadingInterpretation
-            ? "Generando analisis clinico..."
-            : canGeneratePrediction
-              ? "Prediccion Consulta"
-              : "Prediccion ya generada"}
+            ? "Regenerando interpretacion..."
+            : "Regenerar interpretacion"}
         </Button>
       </CardHeader>
       <CardContent>
         {isLoadingInterpretation && (
           <div className="mb-4 rounded-lg border border-primary/25 bg-primary/5 p-3">
-            <p className="text-sm text-primary animate-pulse">Generando analisis clinico...</p>
+            <p className="text-sm text-primary animate-pulse">Regenerando interpretacion clinica...</p>
+          </div>
+        )}
+
+        {interpretationErrorMessage && !isLoadingInterpretation && (
+          <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+            <p className="text-sm text-destructive">{interpretationErrorMessage}</p>
           </div>
         )}
 

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
+import { useRouter } from "next/navigation"
 import {
   usePatients,
   RiskLevel as ContextRiskLevel,
@@ -9,12 +10,14 @@ import {
 } from "@/lib/patient-context"
 import { useConfiguration } from "@/lib/configuration-context"
 import { consultaService } from "@/servicios/consultaService"
-import { fetchApi } from "@/servicios/apiClient"
 import { ApiServiceError, getApiErrorMessage } from "@/servicios/apiError"
-import { Consulta as ApiConsulta, PrediccionResponse } from "@/interfaz/consulta"
+import { ConsultaDetail, PrediccionInterpretacionResponse } from "@/interfaz/consulta"
 import { normalizeClinicalRisk, NormalizedRisk } from "@/lib/risk-normalization"
+import {
+  ConfiguracionesPayload,
+  getConfiguraciones as getBackendConfiguraciones,
+} from "@/services/configuracionService"
 import { MainNav } from "@/components/navigation/main-nav"
-import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { PatientInfoCard } from "@/components/dashboard/patient-info-card"
 import { ObstetricHistoryCard } from "@/components/dashboard/obstetric-history-card"
 import { RiskIndicatorCard } from "@/components/dashboard/risk-indicator-card"
@@ -33,13 +36,136 @@ import { Toaster } from "@/components/ui/toaster"
 import { toast } from "@/hooks/use-toast"
 import {
   extractDateTimeInMexico,
-  getCurrentMexicoDateTimeLabel,
+  formatDateTimeInMexico,
   getDateTimeSortKey,
 } from "@/lib/mexico-time"
-import { Users, ArrowRight } from "lucide-react"
-import Link from "next/link"
+import { CalendarClock } from "lucide-react"
 
 type BackendRisk = NormalizedRisk
+
+const FOLLOW_UP_NONE_KEYS = [
+  "frecuencia_ninguno",
+  "seguimiento_riesgo_ninguno_dias",
+  "seguimiento_ninguno_dias",
+  "riesgo_ninguno_dias",
+  "dias_riesgo_ninguno",
+  "seguimiento_riesgo_bajo_dias",
+  "seguimiento_bajo_dias",
+  "riesgo_bajo_dias",
+  "dias_riesgo_bajo",
+] as const
+
+const FOLLOW_UP_MEDIUM_KEYS = [
+  "frecuencia_medio",
+  "seguimiento_riesgo_medio_dias",
+  "seguimiento_medio_dias",
+  "riesgo_medio_dias",
+  "dias_riesgo_medio",
+] as const
+
+const FOLLOW_UP_HIGH_KEYS = [
+  "frecuencia_alto",
+  "seguimiento_riesgo_alto_dias",
+  "seguimiento_alto_dias",
+  "riesgo_alto_dias",
+  "dias_riesgo_alto",
+] as const
+
+const DEFAULT_FOLLOW_UP_DAYS = {
+  NINGUNO: 30,
+  MEDIO: 14,
+  ALTO: 7,
+} as const
+
+type FollowUpByRisk = {
+  NINGUNO: number
+  MEDIO: number
+  ALTO: number
+}
+
+const riskLabelByNormalizedRisk: Record<NormalizedRisk, string> = {
+  NINGUNO: "Ninguno",
+  MEDIO: "Medio",
+  ALTO: "Alto",
+  HOSPITALIZACION: "Hospitalizacion",
+}
+
+function readFollowUpDays(
+  source: Record<string, unknown>,
+  aliases: readonly string[],
+  fallback: number,
+): number {
+  for (const key of aliases) {
+    const rawValue = source[key]
+    const parsed = typeof rawValue === "number" ? rawValue : Number(rawValue)
+
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return Math.round(parsed)
+    }
+  }
+
+  return fallback
+}
+
+function resolveFollowUpByRisk(config: ConfiguracionesPayload | null): FollowUpByRisk {
+  const source = (config ?? {}) as Record<string, unknown>
+
+  return {
+    NINGUNO: readFollowUpDays(source, FOLLOW_UP_NONE_KEYS, DEFAULT_FOLLOW_UP_DAYS.NINGUNO),
+    MEDIO: readFollowUpDays(source, FOLLOW_UP_MEDIUM_KEYS, DEFAULT_FOLLOW_UP_DAYS.MEDIO),
+    ALTO: readFollowUpDays(source, FOLLOW_UP_HIGH_KEYS, DEFAULT_FOLLOW_UP_DAYS.ALTO),
+  }
+}
+
+function getFollowUpDaysForRisk(riesgo: NormalizedRisk, followUpByRisk: FollowUpByRisk): number {
+  switch (riesgo) {
+    case "ALTO":
+    case "HOSPITALIZACION":
+      return followUpByRisk.ALTO
+    case "MEDIO":
+      return followUpByRisk.MEDIO
+    case "NINGUNO":
+    default:
+      return followUpByRisk.NINGUNO
+  }
+}
+
+function buildUtcDateFromConsultation(consultation: Consultation): Date | null {
+  const dateMatch = consultation.date.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!dateMatch) {
+    return null
+  }
+
+  const timeMatch = consultation.time.trim().match(/^(\d{2}):(\d{2})$/)
+  const year = Number.parseInt(dateMatch[1], 10)
+  const month = Number.parseInt(dateMatch[2], 10)
+  const day = Number.parseInt(dateMatch[3], 10)
+  const hours = timeMatch ? Number.parseInt(timeMatch[1], 10) : 0
+  const minutes = timeMatch ? Number.parseInt(timeMatch[2], 10) : 0
+
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes)
+  ) {
+    return null
+  }
+
+  return new Date(Date.UTC(year, month - 1, day, hours, minutes, 0))
+}
+
+function calculateNextAppointmentDate(consultation: Consultation, followUpDays: number): Date | null {
+  const baseDate = buildUtcDateFromConsultation(consultation)
+  if (!baseDate) {
+    return null
+  }
+
+  const nextDate = new Date(baseDate)
+  nextDate.setUTCDate(nextDate.getUTCDate() + followUpDays)
+  return nextDate
+}
 
 function mapContextRiskToBackendRisk(level: ContextRiskLevel): BackendRisk {
   switch (level) {
@@ -76,25 +202,6 @@ function hasInterpretation(interpretacion: string | null | undefined): boolean {
   return typeof interpretacion === "string" && interpretacion.trim().length > 0
 }
 
-function buildPredictionFromConsulta(consulta: ApiConsulta, fallbackConsultaId: number): PrediccionResponse | null {
-  if (!hasInterpretation(consulta.interpretacion)) {
-    return null
-  }
-
-  const principalRisk = normalizeClinicalRisk(consulta.riesgo)
-
-  return {
-    consulta_id: typeof consulta.id === "number" ? consulta.id : fallbackConsultaId,
-    paciente_id: consulta.paciente_id,
-    riesgo: principalRisk,
-    riesgo_ml: consulta.riesgo_ml ? normalizeClinicalRisk(consulta.riesgo_ml) : principalRisk,
-    riesgo_ml_modelo: consulta.riesgo_ml_modelo ?? null,
-    confianza_ml: typeof consulta.confianza_ml === "number" ? consulta.confianza_ml : undefined,
-    score_total: typeof consulta.score_total === "number" ? consulta.score_total : undefined,
-    interpretacion: consulta.interpretacion!.trim(),
-  }
-}
-
 // Generate BP history data from consultations
 function generateBPHistoryFromConsultations(consultations: Consultation[], type: "systolic" | "diastolic") {
   const sorted = [...consultations].sort((a, b) => {
@@ -108,6 +215,7 @@ function generateBPHistoryFromConsultations(consultations: Consultation[], type:
 }
 
 export default function VitaPrenatalMonitoreoClinico() {
+  const router = useRouter()
   const { 
     selectedPatient,
     selectedConsultation,
@@ -122,17 +230,20 @@ export default function VitaPrenatalMonitoreoClinico() {
   const [systolicData, setSystolicData] = useState<{ week: string; value: number }[]>([])
   const [diastolicData, setDiastolicData] = useState<{ week: string; value: number }[]>([])
   const [showConsultationForm, setShowConsultationForm] = useState(false)
-  const [prediction, setPrediction] = useState<PrediccionResponse | null>(null)
-  const [predictionErrorMessage, setPredictionErrorMessage] = useState<string | null>(null)
-  const [consultationDetails, setConsultationDetails] = useState<ApiConsulta | null>(null)
-  const [predictionLoading, setPredictionLoading] = useState(false)
+  const [consultationDetails, setConsultationDetails] = useState<ConsultaDetail | null>(null)
+  const [consultationLoading, setConsultationLoading] = useState(false)
+  const [consultationErrorMessage, setConsultationErrorMessage] = useState<string | null>(null)
+  const [reinterpretationLoading, setReinterpretationLoading] = useState(false)
+  const [reinterpretationErrorMessage, setReinterpretationErrorMessage] = useState<string | null>(null)
+  const [manualInterpretation, setManualInterpretation] = useState<PrediccionInterpretacionResponse | null>(null)
+  const [followUpConfig, setFollowUpConfig] = useState<ConfiguracionesPayload | null>(null)
+  const [followUpConfigError, setFollowUpConfigError] = useState<string | null>(null)
   const [openingPdfConsultationId, setOpeningPdfConsultationId] = useState<string | null>(null)
-  const [lastUpdated, setLastUpdated] = useState(() => getCurrentMexicoDateTimeLabel())
   const latestConsultationRequestId = useRef(0)
+  const latestReinterpretationRequestId = useRef(0)
 
   const consultationForMedication = selectedConsultation ?? selectedPatient?.consultations[0] ?? null
-  const medicationRiskInput = prediction?.riesgo
-    ?? consultationDetails?.riesgo
+  const medicationRiskInput = consultationDetails?.riesgo
     ?? (consultationForMedication ? mapContextRiskToBackendRisk(consultationForMedication.riskLevel) : "NINGUNO")
 
   const {
@@ -145,7 +256,7 @@ export default function VitaPrenatalMonitoreoClinico() {
     enabled: Boolean(consultationForMedication),
   })
 
-  const syncConsultationInContext = (consultationId: string, consultationFromApi: ApiConsulta) => {
+  const syncConsultationInContext = (consultationId: string, consultationFromApi: ConsultaDetail) => {
     if (!selectedPatient) {
       return
     }
@@ -176,9 +287,11 @@ export default function VitaPrenatalMonitoreoClinico() {
   const loadConsultationClinicalData = async (consultationId?: string) => {
     if (!consultationId || !selectedPatient) {
       setConsultationDetails(null)
-      setPrediction(null)
-      setPredictionErrorMessage(null)
-      setPredictionLoading(false)
+      setManualInterpretation(null)
+      setConsultationErrorMessage(null)
+      setConsultationLoading(false)
+      setReinterpretationErrorMessage(null)
+      setReinterpretationLoading(false)
       return
     }
 
@@ -186,16 +299,17 @@ export default function VitaPrenatalMonitoreoClinico() {
 
     if (Number.isNaN(idNumber)) {
       console.warn("⚠️ loadConsultationClinicalData: consultationId invalido", consultationId)
-      setPredictionLoading(false)
+      setConsultationDetails(null)
+      setConsultationLoading(false)
+      setConsultationErrorMessage("No se pudo identificar la consulta seleccionada.")
       return
     }
 
     const requestId = latestConsultationRequestId.current + 1
     latestConsultationRequestId.current = requestId
 
-    setPredictionLoading(true)
-    setPrediction(null)
-    setPredictionErrorMessage(null)
+    setConsultationLoading(true)
+    setConsultationErrorMessage(null)
 
     try {
       const consultationFromApi = await consultaService.obtenerPorId(idNumber)
@@ -206,32 +320,6 @@ export default function VitaPrenatalMonitoreoClinico() {
 
       setConsultationDetails(consultationFromApi)
       syncConsultationInContext(consultationId, consultationFromApi)
-
-      const storedPrediction = buildPredictionFromConsulta(consultationFromApi, idNumber)
-
-      if (storedPrediction) {
-        setPrediction(storedPrediction)
-        setPredictionErrorMessage(null)
-        return
-      }
-
-      const predictionFromApi = await consultaService.obtenerPrediccion(idNumber)
-
-      if (latestConsultationRequestId.current !== requestId) {
-        return
-      }
-
-      setPrediction(predictionFromApi)
-      setPredictionErrorMessage(null)
-
-      const refreshedConsultation = await consultaService.obtenerPorId(idNumber)
-
-      if (latestConsultationRequestId.current !== requestId) {
-        return
-      }
-
-      setConsultationDetails(refreshedConsultation)
-      syncConsultationInContext(consultationId, refreshedConsultation)
     } catch (error) {
       if (latestConsultationRequestId.current !== requestId) {
         return
@@ -241,47 +329,24 @@ export default function VitaPrenatalMonitoreoClinico() {
         !(error instanceof ApiServiceError) ||
         error.status >= 500
 
+      const fallbackErrorMessage = "No fue posible cargar los datos clinicos de la consulta."
+
       const errorMessage = isNetworkOrServerError
-        ? "No fue posible cargar la prediccion clinica."
+        ? fallbackErrorMessage
         : getApiErrorMessage(error)
 
-      setPredictionErrorMessage(`${errorMessage} Reintente manualmente.`)
+      setConsultationErrorMessage(errorMessage)
 
       toast({
         variant: "destructive",
         title: "Error al cargar consulta",
-        description: `${errorMessage} Reintente manualmente.`,
+        description: errorMessage,
       })
       console.error("Error loading consultation details:", error)
     } finally {
       if (latestConsultationRequestId.current === requestId) {
-        setPredictionLoading(false)
+        setConsultationLoading(false)
       }
-    }
-  }
-
-  const handleRefresh = async () => {
-    if (!consultation?.id) return
-
-    try {
-      const response = await fetchApi(`/api/actualizar/${consultation.id}`, {
-        method: "POST",
-      })
-
-      if (!response.ok) {
-        throw new Error(`Error al actualizar consulta: ${response.status} ${response.statusText}`)
-      }
-
-      await loadConsultationClinicalData(consultation.id)
-      await fetchNotificaciones()
-      setLastUpdated(getCurrentMexicoDateTimeLabel())
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error al actualizar consulta",
-        description: getApiErrorMessage(error),
-      })
-      console.error("Error:", error)
     }
   }
 
@@ -346,24 +411,63 @@ export default function VitaPrenatalMonitoreoClinico() {
       toast({
         variant: "destructive",
         title: "Consulta no seleccionada",
-        description: "Seleccione una consulta para generar la prediccion clinica.",
+        description: "Seleccione una consulta para regenerar la interpretacion clinica.",
       })
       return
     }
 
-    const interpretationExists =
-      hasInterpretation(prediction?.interpretacion) ||
-      hasInterpretation(consultationDetails?.interpretacion)
+    const idNumber = Number.parseInt(consultation.id, 10)
 
-    if (interpretationExists) {
+    if (Number.isNaN(idNumber)) {
       toast({
-        title: "Prediccion existente",
-        description: "La consulta ya tiene interpretacion clinica registrada.",
+        variant: "destructive",
+        title: "Consulta invalida",
+        description: "No se pudo identificar la consulta seleccionada.",
       })
       return
     }
 
-    await loadConsultationClinicalData(consultation.id)
+    const requestId = latestReinterpretationRequestId.current + 1
+    latestReinterpretationRequestId.current = requestId
+
+    setReinterpretationLoading(true)
+    setReinterpretationErrorMessage(null)
+
+    try {
+      const interpretationResponse = await consultaService.obtenerPrediccion(idNumber)
+
+      if (latestReinterpretationRequestId.current !== requestId) {
+        return
+      }
+
+      setManualInterpretation(interpretationResponse)
+    } catch (error) {
+      if (latestReinterpretationRequestId.current !== requestId) {
+        return
+      }
+
+      const isNetworkOrServerError =
+        !(error instanceof ApiServiceError) ||
+        error.status >= 500
+
+      const fallbackErrorMessage = "No fue posible regenerar la interpretacion clinica."
+      const errorMessage = isNetworkOrServerError
+        ? fallbackErrorMessage
+        : getApiErrorMessage(error)
+
+      setReinterpretationErrorMessage(errorMessage)
+
+      toast({
+        variant: "destructive",
+        title: "Error al regenerar interpretacion",
+        description: errorMessage,
+      })
+      console.error("Error regenerating interpretation:", error)
+    } finally {
+      if (latestReinterpretationRequestId.current === requestId) {
+        setReinterpretationLoading(false)
+      }
+    }
   }
 
   const handleOpenReportPdf = async (consultationId: string) => {
@@ -403,47 +507,46 @@ export default function VitaPrenatalMonitoreoClinico() {
     }
   }
 
+  useEffect(() => {
+    if (!selectedPatient) {
+      router.replace("/pacientes")
+    }
+  }, [selectedPatient, router])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadFollowUpConfig = async () => {
+      try {
+        const backendConfig = await getBackendConfiguraciones()
+
+        if (!isMounted) {
+          return
+        }
+
+        setFollowUpConfig(backendConfig)
+        setFollowUpConfigError(null)
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        setFollowUpConfigError(getApiErrorMessage(error))
+      }
+    }
+
+    void loadFollowUpConfig()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   // Show empty state if no patient selected
   if (!selectedPatient) {
     return (
       <div className="min-h-screen bg-background">
-        <MainNav />
-        
-        <main className="container mx-auto px-4 py-6">
-          <Card className="border-border/50 max-w-lg mx-auto mt-12">
-            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                <Users className="h-10 w-10 text-primary" />
-              </div>
-              <h2 className="text-xl font-bold text-foreground mb-2">
-                Seleccione un Paciente
-              </h2>
-              <p className="text-sm text-muted-foreground mb-6 max-w-sm">
-                Para ver el monitoreo clínico de predicción de riesgo, primero seleccione un paciente desde la lista de pacientes registrados.
-              </p>
-              <Link href="/pacientes">
-                <Button className="gap-2">
-                  Ir a Pacientes
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </main>
-
-        {/* Footer */}
-        <footer className="border-t border-border/50 mt-8 py-4 bg-card/50 fixed bottom-0 left-0 right-0">
-          <div className="container mx-auto px-4">
-            <div className="flex flex-col items-center gap-2 text-center text-sm text-muted-foreground">
-              <p className="font-medium">VitaPrenatal</p>
-              <p className="text-xs max-w-md">
-                Sistema de apoyo clinico. No sustituye el juicio medico profesional.
-              </p>
-            </div>
-          </div>
-        </footer>
-
-        <Toaster />
+        <MainNav forceBackButton backButtonHref="/pacientes" />
       </div>
     )
   }
@@ -453,16 +556,17 @@ export default function VitaPrenatalMonitoreoClinico() {
   
   // Refresh consultation details when consultation changes.
   useEffect(() => {
+    latestReinterpretationRequestId.current += 1
+    setReinterpretationLoading(false)
+    setReinterpretationErrorMessage(null)
+
     void loadConsultationClinicalData(consultation?.id)
   }, [consultation?.id, selectedPatient?.id])
   
   if (!consultation) {
     return (
       <div className="min-h-screen bg-background">
-        <MainNav
-          hideUtilityActions
-          subHeader={<DashboardHeader lastUpdated={lastUpdated} onRefresh={handleRefresh} />}
-        />
+        <MainNav forceBackButton backButtonHref="/pacientes" />
         <main className="container mx-auto px-4 py-6">
           <Card className="border-border/50 max-w-lg mx-auto mt-12">
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
@@ -505,6 +609,7 @@ export default function VitaPrenatalMonitoreoClinico() {
     fam_cardiopatia: selectedPatient.fam_cardiopatia,
     antecedentes_familia_hipertension: selectedPatient.familyHypertensionHistory,
     enf_renal_cronica: selectedPatient.enf_renal_cronica,
+    antecedente_preeclampsia_embarazo_previo: selectedPatient.antecedente_preeclampsia_embarazo_previo,
     previousHypertension: consultation.previousHypertension,
     diabetes: consultation.diabetes,
     abortos_previos: selectedPatient.abortos_previos,
@@ -517,39 +622,53 @@ export default function VitaPrenatalMonitoreoClinico() {
   }
 
   const backendRisk = mapContextRiskToBackendRisk(consultation.riskLevel)
-  const currentRiskData = prediction
-    ? {
-        riesgo: prediction.riesgo,
-        riesgo_ml: prediction.riesgo_ml,
-        riesgo_ml_modelo: prediction.riesgo_ml_modelo,
-        confianza_ml: prediction.confianza_ml,
-        score_total: prediction.score_total,
-      }
-    : {
-        riesgo: normalizeClinicalRisk(consultationDetails?.riesgo || backendRisk),
-        riesgo_ml: consultationDetails?.riesgo_ml
-          ? normalizeClinicalRisk(consultationDetails.riesgo_ml)
-          : undefined,
-        riesgo_ml_modelo: consultationDetails?.riesgo_ml_modelo ?? undefined,
-        confianza_ml: consultationDetails?.confianza_ml ?? undefined,
-        score_total: consultationDetails?.score_total ?? undefined,
-      }
+  const currentRiskData = {
+    riesgo: normalizeClinicalRisk(consultationDetails?.riesgo || backendRisk),
+    riesgo_ml: consultationDetails?.riesgo_ml
+      ? normalizeClinicalRisk(consultationDetails.riesgo_ml)
+      : null,
+    riesgo_ml_modelo: consultationDetails?.riesgo_ml_modelo ?? null,
+    confianza_ml: consultationDetails?.confianza_ml ?? null,
+    score_total: consultationDetails?.score_total ?? null,
+  }
 
-  const clinicalInterpretation = hasInterpretation(prediction?.interpretacion)
-    ? prediction?.interpretacion
-    : hasInterpretation(consultationDetails?.interpretacion)
-      ? consultationDetails?.interpretacion
+  const followUpByRisk = useMemo(() => resolveFollowUpByRisk(followUpConfig), [followUpConfig])
+  const followUpDays = getFollowUpDaysForRisk(currentRiskData.riesgo, followUpByRisk)
+  const nextAppointmentDate = calculateNextAppointmentDate(consultation, followUpDays)
+  const nextAppointmentLabel = nextAppointmentDate
+    ? formatDateTimeInMexico(
+        nextAppointmentDate,
+        {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        },
+        "No disponible",
+      )
+    : "No disponible"
+
+  const parsedConsultationId = Number.parseInt(consultation.id, 10)
+  const manualInterpretationForSelectedConsultation =
+    !Number.isNaN(parsedConsultationId) && manualInterpretation?.consulta_id === parsedConsultationId
+      ? manualInterpretation.interpretacion
       : null
 
-  const reportIsAvailable = hasInterpretation(clinicalInterpretation)
-  const canGeneratePrediction = !!consultation.id && !reportIsAvailable
+  const interpretationText = hasInterpretation(manualInterpretationForSelectedConsultation)
+    ? manualInterpretationForSelectedConsultation
+    : consultationDetails?.interpretacion
+
+  const reportIsAvailable = hasInterpretation(interpretationText)
+  const clinicalInterpretation = reportIsAvailable
+    ? interpretationText!.trim()
+    : "Sin interpretación disponible"
+  const canGeneratePrediction = !!consultation.id
 
   return (
     <div className="min-h-screen bg-background">
-      <MainNav
-        hideUtilityActions
-        subHeader={<DashboardHeader lastUpdated={lastUpdated} onRefresh={handleRefresh} />}
-      />
+      <MainNav forceBackButton backButtonHref="/pacientes" />
       
       <main className="container mx-auto px-4 py-6 overflow-x-hidden">
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-12">
@@ -571,9 +690,11 @@ export default function VitaPrenatalMonitoreoClinico() {
           <div className="md:col-span-1 xl:col-span-5 space-y-6">
             <RiskIndicatorCard
               data={currentRiskData}
-              isLoading={predictionLoading}
-              errorMessage={predictionErrorMessage}
-              onRetry={consultation?.id ? () => void loadConsultationClinicalData(consultation.id) : undefined}
+              isLoading={consultationLoading}
+              errorMessage={consultationErrorMessage}
+              onRetry={consultation?.id
+                ? () => void loadConsultationClinicalData(consultation.id)
+                : undefined}
             />
             
             <BloodPressureInputCard
@@ -619,10 +740,36 @@ export default function VitaPrenatalMonitoreoClinico() {
 
           {/* Right Column - Recommendations and Medication */}
           <div className="md:col-span-2 xl:col-span-4 space-y-6">
+            <Card className="border-border/50 shadow-sm">
+              <CardContent className="pt-6 space-y-2">
+                <div className="flex items-center gap-2">
+                  <CalendarClock className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">Proxima cita sugerida</h3>
+                </div>
+
+                <p className="text-sm text-muted-foreground">
+                  Riesgo actual: <span className="font-medium text-foreground">{riskLabelByNormalizedRisk[currentRiskData.riesgo]}</span>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Frecuencia configurada: <span className="font-medium text-foreground">cada {followUpDays} dias</span>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Fecha estimada: <span className="font-medium text-foreground">{nextAppointmentLabel}</span>
+                </p>
+
+                {followUpConfigError && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    No se pudo leer la configuracion de seguimiento del backend. Se usan valores por defecto (30, 14 y 7 dias).
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
             <RecommendationsCard 
               riesgo={currentRiskData.riesgo}
               interpretation={clinicalInterpretation}
-              isLoadingInterpretation={predictionLoading && !clinicalInterpretation}
+              isLoadingInterpretation={reinterpretationLoading}
+              interpretationErrorMessage={reinterpretationErrorMessage}
               onGeneratePrediction={handleGeneratePrediction}
               canGeneratePrediction={canGeneratePrediction}
             />

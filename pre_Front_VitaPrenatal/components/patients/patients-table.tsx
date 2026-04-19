@@ -57,8 +57,8 @@ const riskConfig: Record<RiskLevel, { label: string; bgColor: string; textColor:
   },
   hospitalization: {
     label: "Hospitalizacion",
-    bgColor: "bg-red-100 dark:bg-red-900/25",
-    textColor: "text-red-700 dark:text-red-300",
+    bgColor: "bg-red-200 dark:bg-red-900/45",
+    textColor: "text-red-800 dark:text-red-200",
   },
 }
 

@@ -126,6 +126,7 @@ interface NotificationCardProps {
   fecha: string
   leida: boolean
   updating: boolean
+  disabled?: boolean
   onLeida: () => void
 }
 
@@ -136,10 +137,11 @@ function NotificationCard({
   fecha,
   leida,
   updating,
+  disabled = false,
   onLeida,
 }: NotificationCardProps) {
   const tipoStyles = getStylesByType(tipo)
-  const canMarkAsRead = !leida && !updating
+  const canMarkAsRead = !leida && !updating && !disabled
 
   const handleCardClick = () => {
     if (!canMarkAsRead) {
@@ -216,7 +218,7 @@ function NotificationCard({
               event.stopPropagation()
               onLeida()
             }}
-            disabled={leida || updating}
+            disabled={leida || updating || disabled}
             className={cn(
               "h-8 shrink-0 rounded-md px-3 text-xs",
               leida && "cursor-not-allowed border-border bg-muted text-muted-foreground",
@@ -233,12 +235,14 @@ function NotificationCard({
 interface NotificacionCardContainerProps {
   notificacion: Notificacion
   updatingId: number | null
+  actionsDisabled: boolean
   onLeida: (id: number) => Promise<void>
 }
 
 function NotificacionCardContainer({
   notificacion,
   updatingId,
+  actionsDisabled,
   onLeida,
 }: NotificacionCardContainerProps) {
   return (
@@ -249,6 +253,7 @@ function NotificacionCardContainer({
       fecha={notificacion.fecha}
       leida={notificacion.leida}
       updating={updatingId === notificacion.id}
+      disabled={actionsDisabled}
       onLeida={() => {
         void onLeida(notificacion.id)
       }}
@@ -262,6 +267,7 @@ export default function NotificacionesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [updatingId, setUpdatingId] = useState<number | null>(null)
+  const [bulkUpdatingTarget, setBulkUpdatingTarget] = useState<"ALL" | Notificacion["tipo"] | null>(null)
 
   const cargarNotificaciones = useCallback(async () => {
     setError("")
@@ -290,7 +296,37 @@ export default function NotificacionesPage() {
     void cargarNotificaciones()
   }, [cargarNotificaciones])
 
+  const marcarColeccionComoLeidas = async (
+    ids: number[],
+    target: "ALL" | Notificacion["tipo"],
+  ) => {
+    if (ids.length === 0) {
+      return
+    }
+
+    setBulkUpdatingTarget(target)
+    setError("")
+
+    try {
+      await Promise.all(ids.map((id) => notificacionService.marcarComoLeida(id)))
+    } catch (markError) {
+      console.error("No se pudieron marcar notificaciones como leídas", markError)
+      setError(
+        target === "ALL"
+          ? "No fue posible marcar todas las notificaciones como leídas."
+          : "No fue posible marcar como leídas las notificaciones de esta sección.",
+      )
+    } finally {
+      await Promise.all([cargarNotificaciones(), fetchNotificaciones()])
+      setBulkUpdatingTarget(null)
+    }
+  }
+
   const marcarComoLeida = async (id: number) => {
+    if (bulkUpdatingTarget !== null) {
+      return
+    }
+
     setUpdatingId(id)
     setError("")
 
@@ -304,6 +340,24 @@ export default function NotificacionesPage() {
       setUpdatingId(null)
     }
   }
+
+  const marcarTodasComoLeidas = async () => {
+    const idsPendientes = notificaciones
+      .filter((notificacion) => !notificacion.leida)
+      .map((notificacion) => notificacion.id)
+
+    await marcarColeccionComoLeidas(idsPendientes, "ALL")
+  }
+
+  const marcarSeccionComoLeidas = async (tipo: Notificacion["tipo"]) => {
+    const idsPendientes = notificaciones
+      .filter((notificacion) => notificacion.tipo === tipo && !notificacion.leida)
+      .map((notificacion) => notificacion.id)
+
+    await marcarColeccionComoLeidas(idsPendientes, tipo)
+  }
+
+  const isAnyUpdateInProgress = updatingId !== null || bulkUpdatingTarget !== null
 
   const unreadCount = useMemo(
     () => notificaciones.filter((notificacion) => !notificacion.leida).length,
@@ -322,7 +376,12 @@ export default function NotificacionesPage() {
             .filter((notificacion) => notificacion.tipo === tipo)
             .sort((a, b) => getFechaTimestamp(b.fecha) - getFechaTimestamp(a.fecha)),
         }
-      }).filter((section) => section.items.length > 0),
+      })
+        .map((section) => ({
+          ...section,
+          unreadCount: section.items.filter((item) => !item.leida).length,
+        }))
+        .filter((section) => section.items.length > 0),
     [notificaciones],
   )
 
@@ -342,9 +401,21 @@ export default function NotificacionesPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 rounded-lg border border-border/70 px-3 py-2 text-sm text-muted-foreground">
-            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
-            No leídas: {unreadCount}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex items-center gap-2 rounded-lg border border-border/70 px-3 py-2 text-sm text-muted-foreground">
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+              No leídas: {unreadCount}
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void marcarTodasComoLeidas()
+              }}
+              disabled={unreadCount === 0 || isAnyUpdateInProgress}
+            >
+              {bulkUpdatingTarget === "ALL" ? "Marcando..." : "Marcar todas como leídas"}
+            </Button>
           </div>
         </div>
 
@@ -373,11 +444,30 @@ export default function NotificacionesPage() {
           <div className="space-y-5">
             {groupedNotificaciones.map((section) => (
               <section key={section.tipo} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    {section.sectionTitle}
-                  </h3>
-                  <span className="text-xs text-muted-foreground">{section.items.length}</span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                      {section.sectionTitle}
+                    </h3>
+                    <span className="text-xs text-muted-foreground">{section.items.length}</span>
+                    <Badge variant="outline" className="text-[10px]">
+                      No leídas: {section.unreadCount}
+                    </Badge>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => {
+                      void marcarSeccionComoLeidas(section.tipo)
+                    }}
+                    disabled={section.unreadCount === 0 || isAnyUpdateInProgress}
+                  >
+                    {bulkUpdatingTarget === section.tipo
+                      ? "Marcando..."
+                      : "Marcar sección como leídas"}
+                  </Button>
                 </div>
 
                 <div className="space-y-2">
@@ -386,6 +476,7 @@ export default function NotificacionesPage() {
                       key={notificacion.id}
                       notificacion={notificacion}
                       updatingId={updatingId}
+                      actionsDisabled={bulkUpdatingTarget !== null}
                       onLeida={marcarComoLeida}
                     />
                   ))}

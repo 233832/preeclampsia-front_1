@@ -81,19 +81,23 @@ export function ConsultationForm({ open, onClose, patient, onSave }: Consultatio
   }
 
   const antecedentBooleanItems = [
-    { label: "Hipertension previa", value: patient.previousHypertension },
+    { label: "Hipertensión previa", value: patient.previousHypertension },
     { label: "Diabetes", value: patient.diabetes },
-    { label: "Antecedentes familiares HTA", value: patient.familyHypertensionHistory },
-    { label: "Cardiopatia familiar", value: patient.fam_cardiopatia },
-    { label: "Enfermedad renal cronica", value: patient.enf_renal_cronica },
-    { label: "Embarazo multiple", value: patient.embarazo_multiple },
+    { label: "Antecedentes familiares de hipertensión", value: patient.familyHypertensionHistory },
+    { label: "Cardiopatía familiar", value: patient.fam_cardiopatia },
+    { label: "Enfermedad renal crónica", value: patient.enf_renal_cronica },
+    {
+      label: "Antecedente de preeclampsia en embarazo previo",
+      value: patient.antecedente_preeclampsia_embarazo_previo,
+    },
+    { label: "Embarazo múltiple", value: patient.embarazo_multiple },
     { label: "Muerte fetal", value: patient.muerte_fetal },
-    { label: "Restriccion fetal", value: patient.restriccion_fetal },
+    { label: "Restricción fetal", value: patient.restriccion_fetal },
   ]
 
   const antecedentNumericItems = [
     { label: "Abortos previos", value: patient.abortos_previos },
-    { label: "Cesareas previas", value: patient.cesarea_previos },
+    { label: "Cesáreas previas", value: patient.cesarea_previos },
     { label: "Embarazos previos", value: patient.embarazos_previos },
     { label: "Partos previos", value: patient.partos_previos },
   ]
@@ -250,11 +254,11 @@ export function ConsultationForm({ open, onClose, patient, onSave }: Consultatio
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Scale className="h-4 w-4 text-primary" />
-              Presion Arterial
+              Presión arterial
             </h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="systolic" className="text-xs">Sistolica (mmHg) *</Label>
+                <Label htmlFor="systolic" className="text-xs">Sistólica (mmHg) *</Label>
                 <Input
                   id="systolic"
                   type="text"
@@ -272,7 +276,7 @@ export function ConsultationForm({ open, onClose, patient, onSave }: Consultatio
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="diastolic" className="text-xs">Diastolica (mmHg) *</Label>
+                <Label htmlFor="diastolic" className="text-xs">Diastólica (mmHg) *</Label>
                 <Input
                   id="diastolic"
                   type="text"
@@ -313,7 +317,7 @@ export function ConsultationForm({ open, onClose, patient, onSave }: Consultatio
                           : "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400",
                       )}
                     >
-                      {item.value ? "Si" : "No"}
+                      {item.value ? "Sí" : "No"}
                     </span>
                   </div>
                 ))}

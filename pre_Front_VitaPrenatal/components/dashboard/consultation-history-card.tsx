@@ -71,15 +71,15 @@ export function ConsultationHistoryCard({
   return (
     <Card className="border-border/50 shadow-sm">
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="flex flex-wrap items-center gap-2 text-base font-semibold">
             <ClipboardList className="h-4 w-4 text-primary" />
             Historial de Consultas
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="w-fit max-w-full text-xs whitespace-normal sm:whitespace-nowrap">
               {consultations.length}
             </Badge>
           </CardTitle>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 self-start sm:self-auto">
             <Button size="sm" onClick={onNewConsultation} className="h-8 gap-1">
               <Plus className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Nueva</span>
