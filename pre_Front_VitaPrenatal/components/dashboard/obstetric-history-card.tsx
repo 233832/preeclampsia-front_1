@@ -8,6 +8,7 @@ interface ObstetricHistory {
   fam_cardiopatia: boolean
   antecedentes_familia_hipertension: boolean
   enf_renal_cronica: boolean
+  antecedente_preeclampsia_embarazo_previo: boolean
   previousHypertension: boolean
   diabetes: boolean
   abortos_previos: number
@@ -28,6 +29,7 @@ export function ObstetricHistoryCard({ history }: ObstetricHistoryCardProps) {
     history.fam_cardiopatia,
     history.antecedentes_familia_hipertension,
     history.enf_renal_cronica,
+    history.antecedente_preeclampsia_embarazo_previo,
     history.previousHypertension,
     history.diabetes,
     history.embarazo_multiple,
@@ -41,7 +43,7 @@ export function ObstetricHistoryCard({ history }: ObstetricHistoryCardProps) {
       return (
         <div className="flex items-center gap-1.5">
           <AlertCircle className="h-4 w-4 text-risk-high" />
-          <span className="text-sm font-medium text-risk-high">Si</span>
+          <span className="text-sm font-medium text-risk-high">Sí</span>
         </div>
       )
     }
@@ -71,13 +73,16 @@ export function ObstetricHistoryCard({ history }: ObstetricHistoryCardProps) {
   return (
     <Card className="border-border/50 shadow-sm">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <CardTitle className="flex items-center gap-2 text-lg font-semibold">
             <ClipboardList className="h-5 w-5 text-primary" />
-            Antecedentes Obstetricos
+            Antecedentes obstétricos
           </CardTitle>
           {activeRiskFactors > 0 && (
-            <Badge variant="outline" className="text-risk-high border-risk-high">
+            <Badge
+              variant="outline"
+              className="w-fit max-w-full self-start whitespace-normal text-risk-high border-risk-high"
+            >
               {activeRiskFactors} factor{activeRiskFactors > 1 ? 'es' : ''} de riesgo
             </Badge>
           )}
@@ -87,33 +92,33 @@ export function ObstetricHistoryCard({ history }: ObstetricHistoryCardProps) {
         <div className="space-y-4">
           <div className="rounded-lg border border-border/60 bg-card p-3 space-y-2">
             <h4 className="text-sm font-semibold text-foreground">Heredo-familiares</h4>
-            <BooleanItem label="Cardiopatia familiar" value={history.fam_cardiopatia} />
+            <BooleanItem label="Cardiopatía familiar" value={history.fam_cardiopatia} />
             <BooleanItem
-              label="Antecedentes familiares de hipertension"
+              label="Antecedentes familiares de hipertensión"
               value={history.antecedentes_familia_hipertension}
             />
           </div>
 
           <div className="rounded-lg border border-border/60 bg-card p-3 space-y-2">
-            <h4 className="text-sm font-semibold text-foreground">Personales patologicos</h4>
-            <BooleanItem label="Enfermedad renal cronica" value={history.enf_renal_cronica} />
-            <BooleanItem label="Hipertension previa" value={history.previousHypertension} />
+            <h4 className="text-sm font-semibold text-foreground">Personales patológicos</h4>
+            <BooleanItem label="Enfermedad renal crónica" value={history.enf_renal_cronica} />
+            <BooleanItem label="Hipertensión previa" value={history.previousHypertension} />
             <BooleanItem label="Diabetes" value={history.diabetes} />
           </div>
 
           <div className="rounded-lg border border-border/60 bg-card p-3 space-y-2">
-            <h4 className="text-sm font-semibold text-foreground">Ginecoobstetricos</h4>
+            <h4 className="text-sm font-semibold text-foreground">Ginecoobstétricos</h4>
+            <BooleanItem
+              label="Antecedente de preeclampsia en embarazo previo"
+              value={history.antecedente_preeclampsia_embarazo_previo}
+            />
             <NumberItem label="Abortos previos" value={history.abortos_previos} />
-            <NumberItem label="Cesareas previas" value={history.cesarea_previos} />
+            <NumberItem label="Cesáreas previas" value={history.cesarea_previos} />
             <NumberItem label="Embarazos previos" value={history.embarazos_previos} />
             <NumberItem label="Partos previos" value={history.partos_previos} />
-          </div>
-
-          <div className="rounded-lg border border-border/60 bg-card p-3 space-y-2">
-            <h4 className="text-sm font-semibold text-foreground">Otros</h4>
-            <BooleanItem label="Embarazo multiple" value={history.embarazo_multiple} />
+            <BooleanItem label="Embarazo múltiple" value={history.embarazo_multiple} />
             <BooleanItem label="Muerte fetal" value={history.muerte_fetal} />
-            <BooleanItem label="Restriccion fetal" value={history.restriccion_fetal} />
+            <BooleanItem label="Restricción fetal" value={history.restriccion_fetal} />
           </div>
         </div>
       </CardContent>

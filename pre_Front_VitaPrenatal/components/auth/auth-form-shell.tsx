@@ -11,9 +11,9 @@ interface AuthFormShellProps {
 
 export function AuthFormShell({ title, subtitle, children }: AuthFormShellProps) {
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[linear-gradient(155deg,#ffc8dd_0%,#e9d6f2_45%,#cdb4db_100%)] px-4 py-10">
-      <div className="pointer-events-none absolute left-[-140px] top-[-120px] h-72 w-72 rounded-full bg-[#bde0fe]/80 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-[-140px] right-[-100px] h-80 w-80 rounded-full bg-[#ffc8dd]/70 blur-3xl" />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[linear-gradient(155deg,#f9e5ef_0%,#f4e8f6_48%,#eedff3_100%)] px-4 py-10">
+      <div className="pointer-events-none absolute left-[-140px] top-[-120px] h-72 w-72 rounded-full bg-[#f2d9ea]/60 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-[-140px] right-[-100px] h-80 w-80 rounded-full bg-[#e8d8f2]/55 blur-3xl" />
 
       <section className="relative w-full max-w-[390px] rounded-2xl border border-[#ecdff5] bg-white/95 p-8 shadow-[0_14px_40px_-20px_rgba(74,54,90,0.35)] backdrop-blur-sm">
         <div className="mb-6 flex flex-col items-center text-center">

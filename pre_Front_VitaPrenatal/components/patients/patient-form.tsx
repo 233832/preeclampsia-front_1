@@ -56,6 +56,7 @@ type PatientFormField =
   | "familyHypertensionHistory"
   | "fam_cardiopatia"
   | "enf_renal_cronica"
+  | "antecedentePreeclampsiaEmbarazoPrevio"
   | "embarazo_multiple"
   | "muerte_fetal"
   | "restriccion_fetal"
@@ -77,6 +78,7 @@ const backendFieldToFormFieldMap: Record<string, PatientFormField> = {
   antecedentes_familia_hipertension: "familyHypertensionHistory",
   fam_cardiopatia: "fam_cardiopatia",
   enf_renal_cronica: "enf_renal_cronica",
+  antecedente_preeclampsia_embarazo_previo: "antecedentePreeclampsiaEmbarazoPrevio",
   embarazo_multiple: "embarazo_multiple",
   muerte_fetal: "muerte_fetal",
   restriccion_fetal: "restriccion_fetal",
@@ -133,6 +135,7 @@ export function PatientForm({
     familyHypertensionHistory: false,
     fam_cardiopatia: false,
     enf_renal_cronica: false,
+    antecedentePreeclampsiaEmbarazoPrevio: false,
     abortos_previos: 0,
     cesarea_previos: 0,
     embarazos_previos: 0,
@@ -167,6 +170,7 @@ export function PatientForm({
         familyHypertensionHistory: editingPatient.familyHypertensionHistory,
         fam_cardiopatia: editingPatient.fam_cardiopatia,
         enf_renal_cronica: editingPatient.enf_renal_cronica,
+        antecedentePreeclampsiaEmbarazoPrevio: editingPatient.antecedente_preeclampsia_embarazo_previo,
         abortos_previos: editingPatient.abortos_previos,
         cesarea_previos: editingPatient.cesarea_previos,
         embarazos_previos: editingPatient.embarazos_previos,
@@ -197,6 +201,7 @@ export function PatientForm({
         familyHypertensionHistory: false,
         fam_cardiopatia: false,
         enf_renal_cronica: false,
+        antecedentePreeclampsiaEmbarazoPrevio: false,
         abortos_previos: 0,
         cesarea_previos: 0,
         embarazos_previos: 0,
@@ -249,6 +254,7 @@ export function PatientForm({
           familyHypertensionHistory: formData.familyHypertensionHistory,
           fam_cardiopatia: formData.fam_cardiopatia,
           enf_renal_cronica: formData.enf_renal_cronica,
+          antecedentePreeclampsiaEmbarazoPrevio: formData.antecedentePreeclampsiaEmbarazoPrevio,
           embarazo_multiple: formData.embarazo_multiple,
           muerte_fetal: formData.muerte_fetal,
           restriccion_fetal: formData.restriccion_fetal,
@@ -272,6 +278,7 @@ export function PatientForm({
           familyHypertensionHistory: formData.familyHypertensionHistory,
           fam_cardiopatia: formData.fam_cardiopatia,
           enf_renal_cronica: formData.enf_renal_cronica,
+          antecedentePreeclampsiaEmbarazoPrevio: formData.antecedentePreeclampsiaEmbarazoPrevio,
           embarazo_multiple: formData.embarazo_multiple,
           muerte_fetal: formData.muerte_fetal,
           restriccion_fetal: formData.restriccion_fetal,
@@ -504,7 +511,7 @@ export function PatientForm({
                     <div className="space-y-2">
                       <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
                         <Label htmlFor="fam_cardiopatia_edit" className="cursor-pointer">
-                          Cardiopatia familiar
+                          Cardiopatía familiar
                         </Label>
                         <Checkbox
                           id="fam_cardiopatia_edit"
@@ -520,7 +527,7 @@ export function PatientForm({
                       </div>
                       <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
                         <Label htmlFor="antecedentes_familia_hipertension_edit" className="cursor-pointer">
-                          Antecedentes familiares de hipertension
+                          Antecedentes familiares de hipertensión
                         </Label>
                         <Checkbox
                           id="antecedentes_familia_hipertension_edit"
@@ -535,11 +542,11 @@ export function PatientForm({
                   </div>
 
                   <div className="rounded-lg border border-border/60 bg-card p-4 space-y-3">
-                    <h4 className="text-sm font-semibold text-foreground">Personales patologicos</h4>
+                    <h4 className="text-sm font-semibold text-foreground">Personales patológicos</h4>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
                         <Label htmlFor="enf_renal_cronica_edit" className="cursor-pointer">
-                          Enfermedad renal cronica
+                          Enfermedad renal crónica
                         </Label>
                         <Checkbox
                           id="enf_renal_cronica_edit"
@@ -552,7 +559,7 @@ export function PatientForm({
                       </div>
                       <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
                         <Label htmlFor="hipertension_previa_edit" className="cursor-pointer">
-                          Hipertension previa
+                          Hipertensión previa
                         </Label>
                         <Checkbox
                           id="hipertension_previa_edit"
@@ -580,7 +587,22 @@ export function PatientForm({
                   </div>
 
                   <div className="rounded-lg border border-border/60 bg-card p-4 space-y-3">
-                    <h4 className="text-sm font-semibold text-foreground">Ginecoobstetricos</h4>
+                    <h4 className="text-sm font-semibold text-foreground">Ginecoobstétricos</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
+                        <Label htmlFor="antecedente_preeclampsia_embarazo_previo_edit" className="cursor-default">
+                          Antecedente de preeclampsia en embarazo previo
+                        </Label>
+                        <Checkbox
+                          id="antecedente_preeclampsia_embarazo_previo_edit"
+                          checked={formData.antecedentePreeclampsiaEmbarazoPrevio}
+                          disabled
+                        />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Este antecedente se define solo durante el alta del paciente.
+                      </p>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label htmlFor="abortos_previos_edit">Abortos previos</Label>
@@ -605,7 +627,7 @@ export function PatientForm({
                         )}
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="cesarea_previos_edit">Cesareas previas</Label>
+                        <Label htmlFor="cesarea_previos_edit">Cesáreas previas</Label>
                         <Input
                           id="cesarea_previos_edit"
                           type="text"
@@ -671,14 +693,10 @@ export function PatientForm({
                         )}
                       </div>
                     </div>
-                  </div>
-
-                  <div className="rounded-lg border border-border/60 bg-card p-4 space-y-3">
-                    <h4 className="text-sm font-semibold text-foreground">Otros</h4>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
                         <Label htmlFor="embarazo_multiple_edit" className="cursor-pointer">
-                          Embarazo multiple
+                          Embarazo múltiple
                         </Label>
                         <Checkbox
                           id="embarazo_multiple_edit"
@@ -704,7 +722,7 @@ export function PatientForm({
                       </div>
                       <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
                         <Label htmlFor="restriccion_fetal_edit" className="cursor-pointer">
-                          Restriccion fetal
+                          Restricción fetal
                         </Label>
                         <Checkbox
                           id="restriccion_fetal_edit"
@@ -787,11 +805,11 @@ export function PatientForm({
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <Scale className="h-4 w-4 text-primary" />
-                  Presion Arterial
+                  Presión arterial
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="systolic">Sistolica (mmHg) *</Label>
+                    <Label htmlFor="systolic">Sistólica (mmHg) *</Label>
                     <Input
                       id="systolic"
                       type="text"
@@ -806,7 +824,7 @@ export function PatientForm({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="diastolic">Diastolica (mmHg) *</Label>
+                    <Label htmlFor="diastolic">Diastólica (mmHg) *</Label>
                     <Input
                       id="diastolic"
                       type="text"
@@ -828,7 +846,7 @@ export function PatientForm({
                     <p className="text-[11px] text-muted-foreground">Valor automatico no editable</p>
                   </div>
                   <div className="p-3 rounded-lg border border-primary/20 bg-primary/10 text-center">
-                    <p className="text-xs text-muted-foreground">Presion Arterial Media (PAM)</p>
+                    <p className="text-xs text-muted-foreground">Presión arterial media (PAM)</p>
                     <p className="text-lg font-bold text-primary">{calculatedMAP} mmHg</p>
                     <p className="text-[11px] text-muted-foreground">PAM = (PS + (2 x PD)) / 3</p>
                   </div>
@@ -844,7 +862,7 @@ export function PatientForm({
                     <div className="space-y-2">
                       <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
                         <Label htmlFor="fam_cardiopatia" className="cursor-pointer">
-                          Cardiopatia familiar
+                          Cardiopatía familiar
                         </Label>
                         <Checkbox
                           id="fam_cardiopatia"
@@ -859,7 +877,7 @@ export function PatientForm({
                       </div>
                       <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
                         <Label htmlFor="antecedentes_familia_hipertension" className="cursor-pointer">
-                          Antecedentes familiares de hipertension
+                          Antecedentes familiares de hipertensión
                         </Label>
                         <Checkbox
                           id="antecedentes_familia_hipertension"
@@ -876,11 +894,11 @@ export function PatientForm({
                   </div>
 
                   <div className="rounded-lg border border-border/60 bg-card p-4 space-y-3">
-                    <h4 className="text-sm font-semibold text-foreground">Personales patologicos</h4>
+                    <h4 className="text-sm font-semibold text-foreground">Personales patológicos</h4>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
                         <Label htmlFor="enf_renal_cronica" className="cursor-pointer">
-                          Enfermedad renal cronica
+                          Enfermedad renal crónica
                         </Label>
                         <Checkbox
                           id="enf_renal_cronica"
@@ -892,7 +910,7 @@ export function PatientForm({
                       </div>
                       <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
                         <Label htmlFor="hipertension_previa" className="cursor-pointer">
-                          Hipertension previa
+                          Hipertensión previa
                         </Label>
                         <Checkbox
                           id="hipertension_previa"
@@ -918,7 +936,24 @@ export function PatientForm({
                   </div>
 
                   <div className="rounded-lg border border-border/60 bg-card p-4 space-y-3">
-                    <h4 className="text-sm font-semibold text-foreground">Ginecoobstetricos</h4>
+                    <h4 className="text-sm font-semibold text-foreground">Ginecoobstétricos</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
+                        <Label htmlFor="antecedente_preeclampsia_embarazo_previo" className="cursor-pointer">
+                          Antecedente de preeclampsia en embarazo previo
+                        </Label>
+                        <Checkbox
+                          id="antecedente_preeclampsia_embarazo_previo"
+                          checked={formData.antecedentePreeclampsiaEmbarazoPrevio}
+                          onCheckedChange={(checked) =>
+                            setFormData({
+                              ...formData,
+                              antecedentePreeclampsiaEmbarazoPrevio: checked === true,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label htmlFor="abortos_previos">Abortos previos</Label>
@@ -942,7 +977,7 @@ export function PatientForm({
                         )}
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="cesarea_previos">Cesareas previas</Label>
+                        <Label htmlFor="cesarea_previos">Cesáreas previas</Label>
                         <Input
                           id="cesarea_previos"
                           type="text"
@@ -1005,14 +1040,10 @@ export function PatientForm({
                         )}
                       </div>
                     </div>
-                  </div>
-
-                  <div className="rounded-lg border border-border/60 bg-card p-4 space-y-3">
-                    <h4 className="text-sm font-semibold text-foreground">Otros</h4>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
                         <Label htmlFor="embarazo_multiple" className="cursor-pointer">
-                          Embarazo multiple
+                          Embarazo múltiple
                         </Label>
                         <Checkbox
                           id="embarazo_multiple"
@@ -1036,7 +1067,7 @@ export function PatientForm({
                       </div>
                       <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
                         <Label htmlFor="restriccion_fetal" className="cursor-pointer">
-                          Restriccion fetal
+                          Restricción fetal
                         </Label>
                         <Checkbox
                           id="restriccion_fetal"

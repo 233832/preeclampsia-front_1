@@ -37,6 +37,8 @@ interface MainNavProps {
   onRefresh?: () => void
   lastUpdated?: string
   hideUtilityActions?: boolean
+  forceBackButton?: boolean
+  backButtonHref?: string
   subHeader?: ReactNode
 }
 
@@ -45,6 +47,8 @@ export function MainNav({
   onRefresh,
   lastUpdated,
   hideUtilityActions = false,
+  forceBackButton = false,
+  backButtonHref,
   subHeader,
 }: MainNavProps) {
   const pathname = usePathname()
@@ -56,9 +60,15 @@ export function MainNav({
 
   const notificationsActive = pathname === "/notificaciones"
   const settingsActive = pathname === "/configuraciones"
-  const showBackButton = pathname !== "/"
+  const isPrimaryNavRoute = navItems.some((item) => item.href === pathname)
+  const showBackButton = forceBackButton || !isPrimaryNavRoute
 
   const handleGoBack = () => {
+    if (backButtonHref) {
+      router.push(backButtonHref)
+      return
+    }
+
     if (typeof window !== "undefined" && window.history.length > 1) {
       router.back()
       return
@@ -79,29 +89,14 @@ export function MainNav({
       <div className="container mx-auto px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-4">
           {/* Logo and Title */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10 flex-shrink-0">
-              <Heart className="h-5 w-5 text-primary" fill="currentColor" />
-            </div>
-            <div className="hidden sm:block">
-              <h1 className="text-lg font-bold tracking-tight text-foreground">
-                VitaPrenatal
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                Sistema de predicción temprana de riesgo de preeclampsia basado en ML
-              </p>
-            </div>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="flex items-center gap-1">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {showBackButton && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={handleGoBack}
-                className="gap-2"
+                className="gap-2 flex-shrink-0"
                 aria-label="Retroceder"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -109,6 +104,23 @@ export function MainNav({
               </Button>
             )}
 
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10 flex-shrink-0">
+                <Heart className="h-5 w-5 text-primary" fill="currentColor" />
+              </div>
+              <div className="hidden sm:block min-w-0">
+                <h1 className="text-lg font-bold tracking-tight text-foreground">
+                  VitaPrenatal
+                </h1>
+                <p className="text-xs text-muted-foreground truncate">
+                  Sistema de predicción temprana de riesgo de preeclampsia basado en ML
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="flex items-center gap-1">
             {navItems.map((item) => {
               const isActive = pathname === item.href
               return (

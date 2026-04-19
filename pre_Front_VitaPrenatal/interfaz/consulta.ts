@@ -23,22 +23,27 @@ export interface Consulta {
     presion_sistolica: number;
     presion_diastolica: number;
     pam: number;
-    riesgo?: RiesgoType;
-    riesgo_ml?: RiesgoType | null;
+    riesgo?: string;
+    riesgo_ml?: string | null;
     riesgo_ml_modelo?: string | null;
     confianza_ml?: number | null;
     score_total?: number | null;
     interpretacion?: string | null;
 }
 
-export interface PrediccionResponse {
+export interface ConsultaDetail extends Consulta {
+    id: number;
+    riesgo: string;
+    score_total: number | null;
+    riesgo_ml: string | null;
+    riesgo_ml_modelo: string | null;
+    confianza_ml: number | null;
+    interpretacion: string | null;
+    pam: number;
+}
+
+export interface PrediccionInterpretacionResponse {
     consulta_id: number;
-    paciente_id?: number;
-    riesgo: RiesgoType;
-    riesgo_ml: RiesgoType;
-    riesgo_ml_modelo?: string | null;
-    confianza_ml?: number | null;
-    score_total?: number | null;
+    paciente_id: number | null;
     interpretacion: string;
-    datos_consulta?: PrediccionDatosConsulta;
 }

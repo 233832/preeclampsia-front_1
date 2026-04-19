@@ -1,7 +1,7 @@
-import { Consulta, PrediccionResponse } from '../interfaz/consulta';
+import { Consulta, ConsultaDetail, PrediccionInterpretacionResponse } from '../interfaz/consulta';
 import { buildApiUrl, fetchApi } from './apiClient';
 import { assertApiResponse } from './apiError';
-import { mapPredictionResponse } from './prediccionMapper';
+import { mapPredictionInterpretationResponse } from './prediccionMapper';
 
 export const consultaService = {
     // Crear una nueva consulta
@@ -29,7 +29,7 @@ export const consultaService = {
     },
 
     // Obtener detalles de una consulta por ID
-    obtenerPorId: async (id: number): Promise<Consulta> => {
+    obtenerPorId: async (id: number): Promise<ConsultaDetail> => {
         const response = await fetchApi(`/api/consultas/${id}`);
         await assertApiResponse(response, 'obtener consulta por ID');
         return await response.json();
@@ -37,11 +37,11 @@ export const consultaService = {
 
 
     // Obtener predicción de una consulta
-    obtenerPrediccion: async (id: number): Promise<PrediccionResponse> => {
+    obtenerPrediccion: async (id: number): Promise<PrediccionInterpretacionResponse> => {
         const response = await fetchApi(`/api/consultas/${id}/prediccion`);
         await assertApiResponse(response, 'obtener prediccion de consulta');
         const payload = await response.json();
-        return mapPredictionResponse(payload, id);
+        return mapPredictionInterpretationResponse(payload, id);
     },
 
     obtenerUrlReportePdf: (idConsulta: number): string => {

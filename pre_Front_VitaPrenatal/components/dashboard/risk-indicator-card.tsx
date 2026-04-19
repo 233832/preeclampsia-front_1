@@ -79,8 +79,6 @@ export function RiskIndicatorCard({
   onRetry,
 }: RiskIndicatorCardProps) {
   const currentData = data ?? {}
-  const hasScore = currentData.score_total !== null && currentData.score_total !== undefined
-  const hasConfidence = currentData.confianza_ml !== null && currentData.confianza_ml !== undefined
 
   const scoreValue = parseOptionalNumber(currentData.score_total)
   const confidenceValue = parseOptionalNumber(currentData.confianza_ml)
@@ -92,14 +90,8 @@ export function RiskIndicatorCard({
       ? currentData.riesgo_ml_modelo.trim().toUpperCase()
       : null
 
-  const scoreText = !hasScore
-    ? isLoading
-      ? "Cargando..."
-      : "Pendiente de backend"
-    : scoreValue === null
-      ? "Dato no disponible"
-      : scoreValue.toFixed(2)
-  const confidenceText = confidenceValue === null ? "No disponible" : formatConfidence(confidenceValue)
+  const scoreText = scoreValue === null ? "-" : scoreValue.toFixed(2)
+  const confidenceText = confidenceValue === null ? "-" : formatConfidence(confidenceValue)
 
   const config = riskConfig[riskLevel]
   const Icon = config.icon
@@ -162,11 +154,9 @@ export function RiskIndicatorCard({
 
         <div className="text-center">
           <p className="text-xs text-muted-foreground">
-            Detalle tecnico ML: {modelRiskDetail ?? "No disponible"}
+            Detalle tecnico ML: {modelRiskDetail ?? "NO DISPONIBLE"}
           </p>
-          {confidenceValue !== null && (
-            <p className="text-xs text-muted-foreground">Confianza ML: {confidenceText}</p>
-          )}
+          <p className="text-xs text-muted-foreground">Confianza ML: {confidenceText}</p>
         </div>
 
         <div className="text-center">
@@ -175,7 +165,7 @@ export function RiskIndicatorCard({
           </p>
           {isLoading && (
             <p className="text-[11px] text-primary mt-1 animate-pulse">
-              Generando analisis clinico...
+              Cargando datos clinicos...
             </p>
           )}
         </div>

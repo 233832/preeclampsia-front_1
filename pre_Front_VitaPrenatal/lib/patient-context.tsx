@@ -4,6 +4,8 @@ import { createContext, useContext, useState, ReactNode, useEffect } from "react
 import { pacienteService } from '@/servicios/pacienteService';
 import { expedienteService } from '@/servicios/expedienteService';
 import { consultaService } from '@/servicios/consultaService';
+import { ApiServiceError } from '@/servicios/apiError';
+import type { ExpedienteResponse } from '@/interfaz/expediente';
 import type { PacienteCreateFormInput, PacienteResponse } from '@/interfaz/paciente';
 import type { Consulta as ApiConsulta } from '@/interfaz/consulta';
 import { extractDateTimeInMexico, getDateTimeSortKey } from "@/lib/mexico-time"
@@ -96,6 +98,7 @@ export interface Patient {
   familyHypertensionHistory: boolean
   fam_cardiopatia: boolean
   enf_renal_cronica: boolean
+  antecedente_preeclampsia_embarazo_previo: boolean
   abortos_previos: number
   cesarea_previos: number
   embarazos_previos: number
@@ -196,6 +199,7 @@ function mapPacienteFromApi(
     familyHypertensionHistory: paciente.antecedentes_familia_hipertension ?? false,
     fam_cardiopatia: paciente.fam_cardiopatia ?? false,
     enf_renal_cronica: paciente.enf_renal_cronica ?? false,
+    antecedente_preeclampsia_embarazo_previo: paciente.antecedente_preeclampsia_embarazo_previo ?? false,
     abortos_previos: paciente.abortos_previos ?? 0,
     cesarea_previos: paciente.cesarea_previos ?? 0,
     embarazos_previos: paciente.embarazos_previos ?? 0,
@@ -207,8 +211,109 @@ function mapPacienteFromApi(
   }
 }
 
+function groupConsultasByExpediente(consultas: ApiConsulta[]): Map<number, ApiConsultaConId[]> {
+  const consultasByExpediente = new Map<number, ApiConsultaConId[]>()
+
+  for (const consulta of consultas) {
+    if (!hasConsultaId(consulta)) {
+      continue
+    }
+
+    const existing = consultasByExpediente.get(consulta.expediente_id)
+
+    if (existing) {
+      existing.push(consulta)
+      continue
+    }
+
+    consultasByExpediente.set(consulta.expediente_id, [consulta])
+  }
+
+  return consultasByExpediente
+}
+
+function buildPatientsFromSources(
+  expedientes: ExpedienteResponse[],
+  pacientes: PacienteResponse[],
+  consultasByExpediente: Map<number, ApiConsultaConId[]> = new Map(),
+): Patient[] {
+  const pacientesById = new Map(pacientes.map((paciente) => [paciente.id, paciente]))
+
+  const loadedPatients = expedientes
+    .map((exp) => {
+      const paciente = pacientesById.get(exp.paciente_id)
+
+      if (!paciente) {
+        console.warn(`No se encontro paciente ${exp.paciente_id} para expediente ${exp.id}`)
+        return null
+      }
+
+      const antecedentes = mapAntecedentsFromPacienteApi(paciente)
+      const consultasForExp = (consultasByExpediente.get(exp.id) ?? [])
+        .map((consulta) => mapConsultaFromApi(consulta, antecedentes))
+
+      return mapPacienteFromApi(paciente, exp.id, consultasForExp)
+    })
+    .filter((patient): patient is Patient => patient !== null)
+
+  return sortPatientsNewestFirst(loadedPatients)
+}
+
+function parseOptionalInt(value: string | number): number | null {
+  const parsed = typeof value === "number" ? value : Number.parseInt(value, 10)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function sortPatientsNewestFirst(patients: Patient[]): Patient[] {
+  return [...patients].sort((a, b) => {
+    const aExpedienteId = parseOptionalInt(a.id)
+    const bExpedienteId = parseOptionalInt(b.id)
+
+    if (aExpedienteId !== null && bExpedienteId !== null && aExpedienteId !== bExpedienteId) {
+      return bExpedienteId - aExpedienteId
+    }
+
+    if (a.pacienteId !== b.pacienteId) {
+      return b.pacienteId - a.pacienteId
+    }
+
+    return a.name.localeCompare(b.name)
+  })
+}
+
 // Sample patients data with consultations
 const initialPatients: Patient[] = []
+
+type InitialPatientsBootstrap = {
+  expedientes: ExpedienteResponse[]
+  pacientes: PacienteResponse[]
+  basePatients: Patient[]
+}
+
+let initialPatientsBootstrapInFlight: Promise<InitialPatientsBootstrap> | null = null
+let initialConsultasLoadInFlight: Promise<ApiConsulta[]> | null = null
+
+function dedupeInitialPatientsBootstrap(
+  loader: () => Promise<InitialPatientsBootstrap>,
+): Promise<InitialPatientsBootstrap> {
+  if (!initialPatientsBootstrapInFlight) {
+    initialPatientsBootstrapInFlight = loader().finally(() => {
+      initialPatientsBootstrapInFlight = null
+    })
+  }
+
+  return initialPatientsBootstrapInFlight
+}
+
+function dedupeInitialConsultasLoad(loader: () => Promise<ApiConsulta[]>): Promise<ApiConsulta[]> {
+  if (!initialConsultasLoadInFlight) {
+    initialConsultasLoadInFlight = loader().finally(() => {
+      initialConsultasLoadInFlight = null
+    })
+  }
+
+  return initialConsultasLoadInFlight
+}
 
 export function PatientProvider({ children }: { children: ReactNode }) {
   const [patients, setPatients] = useState<Patient[]>(initialPatients)
@@ -217,36 +322,78 @@ export function PatientProvider({ children }: { children: ReactNode }) {
   const [selectedConsultation, setSelectedConsultation] = useState<Consultation | null>(null)
 
   const loadPatientsFromBackend = async (): Promise<Patient[]> => {
-    const expedientes = await expedienteService.listar();
-    const allConsultas = await consultaService.listar();
+    const [expedientes, allPacientes, allConsultas] = await Promise.all([
+      expedienteService.listar(),
+      pacienteService.listar(),
+      consultaService.listar(),
+    ])
 
-    const loadedPatients = await Promise.all(
-      expedientes.map(async (exp) => {
-        const paciente = await pacienteService.obtenerPorId(exp.paciente_id);
-        const antecedentes = mapAntecedentsFromPacienteApi(paciente)
-        const consultasForExp = allConsultas
-          .filter((c): c is ApiConsultaConId => c.expediente_id === exp.id && hasConsultaId(c))
-          .map((c) => mapConsultaFromApi(c, antecedentes));
-
-        return mapPacienteFromApi(paciente, exp.id, consultasForExp)
-      }),
-    )
-
-    return loadedPatients
+    const consultasByExpediente = groupConsultasByExpediente(allConsultas)
+    return buildPatientsFromSources(expedientes, allPacientes, consultasByExpediente)
   }
 
   useEffect(() => {
+    let isMounted = true
+
     const loadData = async () => {
       try {
-        const loadedPatients = await loadPatientsFromBackend()
-        setPatients(loadedPatients)
+        const bootstrap = await dedupeInitialPatientsBootstrap(async () => {
+          const [expedientes, allPacientes] = await Promise.all([
+            expedienteService.listar(),
+            pacienteService.listar(),
+          ])
+
+          return {
+            expedientes,
+            pacientes: allPacientes,
+            basePatients: buildPatientsFromSources(expedientes, allPacientes),
+          }
+        })
+
+        if (!isMounted) {
+          return
+        }
+
+        // Show patient list quickly and hydrate consultation metrics in background.
+        setPatients(bootstrap.basePatients)
+        setLoading(false)
+
+        try {
+          const allConsultas = await dedupeInitialConsultasLoad(() => consultaService.listar())
+
+          if (!isMounted) {
+            return
+          }
+
+          const hydratedPatients = buildPatientsFromSources(
+            bootstrap.expedientes,
+            bootstrap.pacientes,
+            groupConsultasByExpediente(allConsultas),
+          )
+
+          setPatients(hydratedPatients)
+        } catch (error) {
+          if (isMounted) {
+            console.error('Error loading consultations for patient hydration:', error)
+          }
+        }
       } catch (error) {
-        console.error('Error loading data:', error);
+        if (isMounted) {
+          console.error('Error loading data:', error)
+          setLoading(false)
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false)
+        }
       }
-    };
-    loadData();
+    }
+
+    void loadData()
+
+    return () => {
+      isMounted = false
+    }
   }, []);
 
   const addPatient = async (patientData: PatientRegistrationInput) => {
@@ -277,11 +424,7 @@ export function PatientProvider({ children }: { children: ReactNode }) {
         presion_diastolica: consultation.diastolic,
         pam: calculatedPam,
       };
-      const consultaCreada = await consultaService.crear(consultaData);
-
-      if (typeof consultaCreada.id === "number") {
-        await consultaService.obtenerPrediccion(consultaCreada.id)
-      }
+      await consultaService.crear(consultaData);
       
       const refreshedPatients = await loadPatientsFromBackend()
       setPatients(refreshedPatients)
@@ -335,15 +478,43 @@ export function PatientProvider({ children }: { children: ReactNode }) {
   }
 
   const deletePatient = async (id: string) => {
+    const currentPatient = patients.find((patient) => patient.id === id)
+
+    if (!currentPatient) {
+      console.error('Error deleting patient: Recurso no encontrado')
+      return
+    }
+
+    const expedienteId = Number.parseInt(currentPatient.id, 10)
+    if (Number.isNaN(expedienteId)) {
+      console.error('Error deleting patient: ID de expediente invalido')
+      return
+    }
+
     try {
-      await expedienteService.eliminar(parseInt(id));
+      try {
+        await expedienteService.eliminar(expedienteId)
+      } catch (error) {
+        if (!(error instanceof ApiServiceError) || error.status !== 404) {
+          throw error
+        }
+      }
+
+      try {
+        await pacienteService.eliminar(currentPatient.pacienteId)
+      } catch (error) {
+        if (!(error instanceof ApiServiceError) || error.status !== 404) {
+          throw error
+        }
+      }
+
       setPatients((prev) => prev.filter((p) => p.id !== id))
       if (selectedPatient?.id === id) {
         setSelectedPatient(null)
         setSelectedConsultation(null)
       }
     } catch (error) {
-      console.error('Error deleting patient:', error);
+      console.error('Error deleting patient:', error)
     }
   }
 
@@ -386,11 +557,7 @@ export function PatientProvider({ children }: { children: ReactNode }) {
           ? consultationData.pam
           : calculateMeanArterialPressure(consultationData.systolic, consultationData.diastolic),
       };
-      const nuevaConsulta = await consultaService.crear(consultaData);
-
-      if (typeof nuevaConsulta.id === "number") {
-        await consultaService.obtenerPrediccion(nuevaConsulta.id)
-      }
+      await consultaService.crear(consultaData);
       
       // Reload consultations for this patient
       const allPatientConsultas = await consultaService.listarPorPacienteId(expediente.paciente_id);
