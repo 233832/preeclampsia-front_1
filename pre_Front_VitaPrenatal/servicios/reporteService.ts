@@ -38,10 +38,10 @@ export const reporteService = {
     abrirVistaPrevia: async (consultaId: number): Promise<void> => {
         assertConsultaId(consultaId);
 
-        const response = await fetchApi(`/api/reportes/${consultaId}/preview`, {
+        const response = await fetchApi(`/api/reportes/${consultaId}`, {
             method: 'GET',
             headers: {
-                Accept: 'text/html',
+                Accept: 'application/pdf',
             },
         });
 
@@ -52,18 +52,17 @@ export const reporteService = {
             );
         }
 
-        const html = await response.text();
+        const pdfBlob = await response.blob();
 
-        if (!html.trim()) {
-            throw new Error('La vista previa del reporte no contiene contenido.');
+        if (pdfBlob.size === 0) {
+            throw new Error('La vista previa del reporte llego vacia.');
         }
 
         if (typeof window === 'undefined') {
             throw new Error('La vista previa solo esta disponible en el navegador.');
         }
 
-        const previewBlob = new Blob([html], { type: 'text/html;charset=utf-8' });
-        const objectUrl = window.URL.createObjectURL(previewBlob);
+        const objectUrl = window.URL.createObjectURL(pdfBlob);
 
         const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer');
 

@@ -1,7 +1,13 @@
-import { Consulta, ConsultaDetail, PrediccionInterpretacionResponse } from '../interfaz/consulta';
+import {
+    Consulta,
+    ConsultaDetail,
+    ConsultaMedicacionUpdate,
+    PrediccionInterpretacionResponse,
+} from '../interfaz/consulta';
 import { buildApiUrl, fetchApi } from './apiClient';
 import { assertApiResponse } from './apiError';
 import { mapPredictionInterpretationResponse } from './prediccionMapper';
+import { fetchAllPaginated } from './pagination';
 
 export const consultaService = {
     // Crear una nueva consulta
@@ -16,22 +22,41 @@ export const consultaService = {
     },
 
     // Obtener lista de consultas
-    listar: async (skip: number = 0, limit: number = 100): Promise<Consulta[]> => {
-        const response = await fetchApi(`/api/consultas/?skip=${skip}&limit=${limit}`);
-        await assertApiResponse(response, 'obtener consultas');
-        return await response.json();
+    listar: async (): Promise<Consulta[]> => {
+        return await fetchAllPaginated<Consulta>(
+            (skip, limit) => `/api/consultas/?skip=${skip}&limit=${limit}`,
+            'obtener consultas',
+        );
     },
 
-    listarPorPacienteId: async (pacienteId: number, skip: number = 0, limit: number = 100): Promise<Consulta[]> => {
-        const response = await fetchApi(`/api/consultas/?paciente_id=${pacienteId}&skip=${skip}&limit=${limit}`);
-        await assertApiResponse(response, 'obtener consultas por paciente');
-        return await response.json();
+    listarPorPacienteId: async (pacienteId: number): Promise<Consulta[]> => {
+        return await fetchAllPaginated<Consulta>(
+            (skip, limit) => `/api/consultas/?paciente_id=${pacienteId}&skip=${skip}&limit=${limit}`,
+            'obtener consultas por paciente',
+        );
     },
 
     // Obtener detalles de una consulta por ID
     obtenerPorId: async (id: number): Promise<ConsultaDetail> => {
         const response = await fetchApi(`/api/consultas/${id}`);
         await assertApiResponse(response, 'obtener consulta por ID');
+        return await response.json();
+    },
+
+    actualizarMedicacionDoctor: async (
+        id: number,
+        payload: ConsultaMedicacionUpdate,
+    ): Promise<ConsultaDetail> => {
+        if (!Number.isFinite(id) || id <= 0) {
+            throw new Error('ID de consulta invalido para actualizar medicacion del doctor.');
+        }
+
+        const response = await fetchApi(`/api/consultas/${id}/medicacion-doctor`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        await assertApiResponse(response, 'actualizar medicacion del doctor');
         return await response.json();
     },
 

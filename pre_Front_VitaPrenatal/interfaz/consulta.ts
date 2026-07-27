@@ -29,6 +29,9 @@ export interface Consulta {
     confianza_ml?: number | null;
     score_total?: number | null;
     interpretacion?: string | null;
+    recomendacion_doctor?: string | null;
+    incluir_medicacion_sugerida?: boolean;
+    incluir_recomendacion_doctor?: boolean;
 }
 
 export interface ConsultaDetail extends Consulta {
@@ -40,6 +43,15 @@ export interface ConsultaDetail extends Consulta {
     confianza_ml: number | null;
     interpretacion: string | null;
     pam: number;
+    recomendacion_doctor: string | null;
+    incluir_medicacion_sugerida: boolean;
+    incluir_recomendacion_doctor: boolean;
+}
+
+export interface ConsultaMedicacionUpdate {
+    recomendacion_doctor?: string | null;
+    incluir_medicacion_sugerida?: boolean | null;
+    incluir_recomendacion_doctor?: boolean | null;
 }
 
 export interface PrediccionInterpretacionResponse {

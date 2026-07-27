@@ -211,6 +211,32 @@ function mapPacienteFromApi(
   }
 }
 
+function buildConsultationFromRegistration(
+  consultationId: number | undefined,
+  consultationData: PatientRegistrationInput["consultation"],
+  antecedentes: ConsultationAntecedents,
+  risk: string | undefined,
+): Consultation {
+  return {
+    id: (consultationId ?? 0).toString(),
+    date: consultationData.date,
+    time: consultationData.time,
+    gestationalWeek: consultationData.gestationalWeek,
+    weight: consultationData.weight,
+    height: consultationData.height,
+    bmi: calculateBMI(consultationData.weight, consultationData.height),
+    pam: consultationData.pam,
+    systolic: consultationData.systolic,
+    diastolic: consultationData.diastolic,
+    previousHypertension: antecedentes.previousHypertension,
+    diabetes: antecedentes.diabetes,
+    familyHypertensionHistory: antecedentes.familyHypertensionHistory,
+    riskLevel: mapApiRisk(risk ?? "NINGUNO"),
+    riskProbability: 0,
+    notes: consultationData.notes,
+  }
+}
+
 function groupConsultasByExpediente(consultas: ApiConsulta[]): Map<number, ApiConsultaConId[]> {
   const consultasByExpediente = new Map<number, ApiConsultaConId[]>()
 
@@ -279,6 +305,20 @@ function sortPatientsNewestFirst(patients: Patient[]): Patient[] {
 
     return a.name.localeCompare(b.name)
   })
+}
+
+function mergePatientsById(currentPatients: Patient[], nextPatients: Patient[]): Patient[] {
+  const mergedPatients = new Map<string, Patient>()
+
+  for (const patient of currentPatients) {
+    mergedPatients.set(patient.id, patient)
+  }
+
+  for (const patient of nextPatients) {
+    mergedPatients.set(patient.id, patient)
+  }
+
+  return sortPatientsNewestFirst(Array.from(mergedPatients.values()))
 }
 
 // Sample patients data with consultations
@@ -355,7 +395,7 @@ export function PatientProvider({ children }: { children: ReactNode }) {
         }
 
         // Show patient list quickly and hydrate consultation metrics in background.
-        setPatients(bootstrap.basePatients)
+        setPatients((currentPatients) => mergePatientsById(currentPatients, bootstrap.basePatients))
         setLoading(false)
 
         try {
@@ -371,7 +411,7 @@ export function PatientProvider({ children }: { children: ReactNode }) {
             groupConsultasByExpediente(allConsultas),
           )
 
-          setPatients(hydratedPatients)
+          setPatients((currentPatients) => mergePatientsById(currentPatients, hydratedPatients))
         } catch (error) {
           if (isMounted) {
             console.error('Error loading consultations for patient hydration:', error)
@@ -424,10 +464,29 @@ export function PatientProvider({ children }: { children: ReactNode }) {
         presion_diastolica: consultation.diastolic,
         pam: calculatedPam,
       };
-      await consultaService.crear(consultaData);
+      const consultaCreada = await consultaService.crear(consultaData);
+
+      const antecedentes = mapAntecedentsFromPacienteApi(pacienteResponse)
+      const patientConsultation = buildConsultationFromRegistration(
+        consultaCreada.id,
+        {
+          ...consultation,
+          pam: calculatedPam,
+        },
+        antecedentes,
+        consultaCreada.riesgo,
+      )
+
+      const optimisticPatient = mapPacienteFromApi(
+        pacienteResponse,
+        expedienteResponse.id,
+        [patientConsultation],
+      )
+
+      setPatients((currentPatients) => mergePatientsById(currentPatients, [optimisticPatient]))
       
       const refreshedPatients = await loadPatientsFromBackend()
-      setPatients(refreshedPatients)
+      setPatients((currentPatients) => mergePatientsById(currentPatients, refreshedPatients))
     } catch (error) {
       console.error('Error adding patient:', error);
       throw error

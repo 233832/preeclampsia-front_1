@@ -25,6 +25,7 @@ import { VitalSignsChart } from "@/components/dashboard/vital-signs-chart"
 import { BloodPressureInputCard } from "@/components/dashboard/blood-pressure-input-card"
 import { RecommendationsCard } from "@/components/dashboard/recommendations-card"
 import { MedicationRecommendationsCard } from "@/components/dashboard/medication-recommendations-card"
+import { DoctorMedicationCard } from "@/components/dashboard/doctor-medication-card"
 import { PatientNotesCard } from "@/components/dashboard/patient-notes-card"
 import { ConsultationHistoryCard } from "@/components/dashboard/consultation-history-card"
 import { ReportDownloadCard } from "@/components/dashboard/report-download-card"
@@ -202,6 +203,34 @@ function hasInterpretation(interpretacion: string | null | undefined): boolean {
   return typeof interpretacion === "string" && interpretacion.trim().length > 0
 }
 
+type DoctorMedicationFormState = {
+  recomendacionDoctor: string
+  incluirMedicacionSugerida: boolean
+  incluirRecomendacionDoctor: boolean
+}
+
+const DEFAULT_DOCTOR_MEDICATION_FORM: DoctorMedicationFormState = {
+  recomendacionDoctor: "",
+  incluirMedicacionSugerida: true,
+  incluirRecomendacionDoctor: false,
+}
+
+function mapConsultaToDoctorMedicationForm(
+  consulta: ConsultaDetail | null,
+): DoctorMedicationFormState {
+  if (!consulta) {
+    return DEFAULT_DOCTOR_MEDICATION_FORM
+  }
+
+  return {
+    recomendacionDoctor: consulta.recomendacion_doctor ?? "",
+    incluirMedicacionSugerida: consulta.incluir_medicacion_sugerida ?? true,
+    incluirRecomendacionDoctor:
+      consulta.incluir_recomendacion_doctor
+      ?? Boolean((consulta.recomendacion_doctor ?? "").trim()),
+  }
+}
+
 // Generate BP history data from consultations
 function generateBPHistoryFromConsultations(consultations: Consultation[], type: "systolic" | "diastolic") {
   const sorted = [...consultations].sort((a, b) => {
@@ -239,6 +268,15 @@ export default function VitaPrenatalMonitoreoClinico() {
   const [followUpConfig, setFollowUpConfig] = useState<ConfiguracionesPayload | null>(null)
   const [followUpConfigError, setFollowUpConfigError] = useState<string | null>(null)
   const [openingPdfConsultationId, setOpeningPdfConsultationId] = useState<string | null>(null)
+  const [doctorMedicationForm, setDoctorMedicationForm] = useState<DoctorMedicationFormState>(
+    DEFAULT_DOCTOR_MEDICATION_FORM,
+  )
+  const [doctorMedicationInitial, setDoctorMedicationInitial] = useState<DoctorMedicationFormState>(
+    DEFAULT_DOCTOR_MEDICATION_FORM,
+  )
+  const [doctorMedicationSaving, setDoctorMedicationSaving] = useState(false)
+  const [doctorMedicationSaveError, setDoctorMedicationSaveError] = useState<string | null>(null)
+  const [doctorMedicationSaveSuccess, setDoctorMedicationSaveSuccess] = useState<string | null>(null)
   const latestConsultationRequestId = useRef(0)
   const latestReinterpretationRequestId = useRef(0)
 
@@ -255,6 +293,14 @@ export default function VitaPrenatalMonitoreoClinico() {
   } = useMedicacion(medicationRiskInput, {
     enabled: Boolean(consultationForMedication),
   })
+
+  const doctorMedicationHasChanges = useMemo(
+    () =>
+      doctorMedicationForm.recomendacionDoctor !== doctorMedicationInitial.recomendacionDoctor
+      || doctorMedicationForm.incluirMedicacionSugerida !== doctorMedicationInitial.incluirMedicacionSugerida
+      || doctorMedicationForm.incluirRecomendacionDoctor !== doctorMedicationInitial.incluirRecomendacionDoctor,
+    [doctorMedicationForm, doctorMedicationInitial],
+  )
 
   const syncConsultationInContext = (consultationId: string, consultationFromApi: ConsultaDetail) => {
     if (!selectedPatient) {
@@ -287,6 +333,11 @@ export default function VitaPrenatalMonitoreoClinico() {
   const loadConsultationClinicalData = async (consultationId?: string) => {
     if (!consultationId || !selectedPatient) {
       setConsultationDetails(null)
+      setDoctorMedicationForm(DEFAULT_DOCTOR_MEDICATION_FORM)
+      setDoctorMedicationInitial(DEFAULT_DOCTOR_MEDICATION_FORM)
+      setDoctorMedicationSaving(false)
+      setDoctorMedicationSaveError(null)
+      setDoctorMedicationSaveSuccess(null)
       setManualInterpretation(null)
       setConsultationErrorMessage(null)
       setConsultationLoading(false)
@@ -300,6 +351,11 @@ export default function VitaPrenatalMonitoreoClinico() {
     if (Number.isNaN(idNumber)) {
       console.warn("⚠️ loadConsultationClinicalData: consultationId invalido", consultationId)
       setConsultationDetails(null)
+      setDoctorMedicationForm(DEFAULT_DOCTOR_MEDICATION_FORM)
+      setDoctorMedicationInitial(DEFAULT_DOCTOR_MEDICATION_FORM)
+      setDoctorMedicationSaving(false)
+      setDoctorMedicationSaveError(null)
+      setDoctorMedicationSaveSuccess(null)
       setConsultationLoading(false)
       setConsultationErrorMessage("No se pudo identificar la consulta seleccionada.")
       return
@@ -310,6 +366,8 @@ export default function VitaPrenatalMonitoreoClinico() {
 
     setConsultationLoading(true)
     setConsultationErrorMessage(null)
+    setDoctorMedicationSaveError(null)
+    setDoctorMedicationSaveSuccess(null)
 
     try {
       const consultationFromApi = await consultaService.obtenerPorId(idNumber)
@@ -319,6 +377,9 @@ export default function VitaPrenatalMonitoreoClinico() {
       }
 
       setConsultationDetails(consultationFromApi)
+      const doctorMedicationFromApi = mapConsultaToDoctorMedicationForm(consultationFromApi)
+      setDoctorMedicationForm(doctorMedicationFromApi)
+      setDoctorMedicationInitial(doctorMedicationFromApi)
       syncConsultationInContext(consultationId, consultationFromApi)
     } catch (error) {
       if (latestConsultationRequestId.current !== requestId) {
@@ -348,6 +409,15 @@ export default function VitaPrenatalMonitoreoClinico() {
         setConsultationLoading(false)
       }
     }
+  }
+
+  const updateDoctorMedicationForm = (partial: Partial<DoctorMedicationFormState>) => {
+    setDoctorMedicationSaveError(null)
+    setDoctorMedicationSaveSuccess(null)
+    setDoctorMedicationForm((current) => ({
+      ...current,
+      ...partial,
+    }))
   }
 
   // Update values when selected consultation changes
@@ -504,6 +574,69 @@ export default function VitaPrenatalMonitoreoClinico() {
       setOpeningPdfConsultationId((current) =>
         current === consultationId ? null : current,
       )
+    }
+  }
+
+  const handleSaveDoctorMedication = async () => {
+    if (!consultation?.id) {
+      toast({
+        variant: "destructive",
+        title: "Consulta no seleccionada",
+        description: "Seleccione una consulta para guardar medicacion del doctor.",
+      })
+      return
+    }
+
+    const consultaId = Number.parseInt(consultation.id, 10)
+
+    if (Number.isNaN(consultaId)) {
+      toast({
+        variant: "destructive",
+        title: "Consulta invalida",
+        description: "No se pudo identificar la consulta seleccionada.",
+      })
+      return
+    }
+
+    setDoctorMedicationSaving(true)
+    setDoctorMedicationSaveError(null)
+    setDoctorMedicationSaveSuccess(null)
+
+    try {
+      const updatedConsulta = await consultaService.actualizarMedicacionDoctor(consultaId, {
+        recomendacion_doctor:
+          doctorMedicationForm.recomendacionDoctor.trim().length > 0
+            ? doctorMedicationForm.recomendacionDoctor.trim()
+            : null,
+        incluir_medicacion_sugerida: doctorMedicationForm.incluirMedicacionSugerida,
+        incluir_recomendacion_doctor: doctorMedicationForm.incluirRecomendacionDoctor,
+      })
+
+      setConsultationDetails(updatedConsulta)
+      syncConsultationInContext(consultation.id, updatedConsulta)
+
+      const updatedDoctorMedication = mapConsultaToDoctorMedicationForm(updatedConsulta)
+      setDoctorMedicationForm(updatedDoctorMedication)
+      setDoctorMedicationInitial(updatedDoctorMedication)
+
+      const successMessage = "Medicacion del doctor guardada. Vista previa y PDF usaran esta configuracion."
+      setDoctorMedicationSaveSuccess(successMessage)
+
+      toast({
+        title: "Medicacion del doctor guardada",
+        description: "La configuracion de inclusion para reporte y vista previa fue actualizada.",
+      })
+    } catch (error) {
+      const errorMessage = getApiErrorMessage(error)
+      setDoctorMedicationSaveError(errorMessage)
+
+      toast({
+        variant: "destructive",
+        title: "Error al guardar medicacion del doctor",
+        description: errorMessage,
+      })
+    } finally {
+      setDoctorMedicationSaving(false)
     }
   }
 
@@ -781,6 +914,29 @@ export default function VitaPrenatalMonitoreoClinico() {
               data={medicationData}
               onRetry={() => {
                 void refetchMedicacion()
+              }}
+            />
+
+            <DoctorMedicationCard
+              recomendacionDoctor={doctorMedicationForm.recomendacionDoctor}
+              incluirMedicacionSugerida={doctorMedicationForm.incluirMedicacionSugerida}
+              incluirRecomendacionDoctor={doctorMedicationForm.incluirRecomendacionDoctor}
+              isDirty={doctorMedicationHasChanges}
+              isLoading={consultationLoading}
+              isSaving={doctorMedicationSaving}
+              saveError={doctorMedicationSaveError}
+              saveSuccess={doctorMedicationSaveSuccess}
+              onRecommendationChange={(value) => {
+                updateDoctorMedicationForm({ recomendacionDoctor: value })
+              }}
+              onIncluirMedicacionSugeridaChange={(checked) => {
+                updateDoctorMedicationForm({ incluirMedicacionSugerida: checked })
+              }}
+              onIncluirRecomendacionDoctorChange={(checked) => {
+                updateDoctorMedicationForm({ incluirRecomendacionDoctor: checked })
+              }}
+              onSave={() => {
+                void handleSaveDoctorMedication()
               }}
             />
           </div>

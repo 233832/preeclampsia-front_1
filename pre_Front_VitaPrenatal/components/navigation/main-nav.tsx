@@ -110,10 +110,10 @@ export function MainNav({
               </div>
               <div className="hidden sm:block min-w-0">
                 <h1 className="text-lg font-bold tracking-tight text-foreground">
-                  VitaPrenatal
+                  PrenatalRisk AI
                 </h1>
                 <p className="text-xs text-muted-foreground truncate">
-                  Sistema de predicción temprana de riesgo de preeclampsia basado en ML
+                  Estratificación Inteligente de Riesgo de Preeclampsia
                 </p>
               </div>
             </div>

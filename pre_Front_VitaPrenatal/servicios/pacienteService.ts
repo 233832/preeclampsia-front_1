@@ -1,6 +1,7 @@
 import { PacienteCreateRequest, PacienteResponse } from '../interfaz/paciente';
 import { fetchApi } from './apiClient';
 import { assertApiResponse } from './apiError';
+import { fetchAllPaginated } from './pagination';
 
 export async function createPatient(datos: PacienteCreateRequest): Promise<PacienteResponse> {
     const response = await fetchApi('/api/pacientes/', {
@@ -24,11 +25,11 @@ export async function updatePatient(id: number, datos: PacienteCreateRequest): P
     return await response.json();
 }
 
-export async function listPatients(skip: number = 0, limit: number = 100): Promise<PacienteResponse[]> {
-    const response = await fetchApi(`/api/pacientes/?skip=${skip}&limit=${limit}`);
-
-    await assertApiResponse(response, 'obtener pacientes');
-    return await response.json();
+export async function listPatients(): Promise<PacienteResponse[]> {
+    return await fetchAllPaginated<PacienteResponse>(
+        (skip, limit) => `/api/pacientes/?skip=${skip}&limit=${limit}`,
+        'obtener pacientes',
+    );
 }
 
 export async function deletePatient(id: number): Promise<void> {

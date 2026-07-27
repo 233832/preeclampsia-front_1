@@ -15,7 +15,7 @@ import {
 import { consultaService } from "@/servicios/consultaService"
 import { pacienteService } from "@/servicios/pacienteService"
 import { reporteService } from "@/servicios/reporteService"
-import type { Consulta } from "@/interfaz/consulta"
+import type { ConsultaDetail } from "@/interfaz/consulta"
 import type { PacienteResponse } from "@/interfaz/paciente"
 import { formatDateTimeInMexico } from "@/lib/mexico-time"
 
@@ -87,10 +87,18 @@ function formatNumberValue(value: unknown, digits = 2): string {
   return value.toFixed(digits)
 }
 
+function formatToggleValue(value: unknown): string {
+  if (typeof value !== "boolean") {
+    return "No registrado"
+  }
+
+  return value ? "Si" : "No"
+}
+
 export function ReporteConsulta({ consultaIdParam }: ReporteConsultaProps) {
   const consultaId = useMemo(() => parseConsultaId(consultaIdParam), [consultaIdParam])
 
-  const [consulta, setConsulta] = useState<Consulta | null>(null)
+  const [consulta, setConsulta] = useState<ConsultaDetail | null>(null)
   const [paciente, setPaciente] = useState<PacienteResponse | null>(null)
   const [loadingData, setLoadingData] = useState(false)
   const [loadingAction, setLoadingAction] = useState<ReportAction>(null)
@@ -243,6 +251,27 @@ export function ReporteConsulta({ consultaIdParam }: ReporteConsultaProps) {
                 <p className="text-xs text-muted-foreground">Interpretacion</p>
                 <p className="text-sm font-medium line-clamp-2">
                   {noRegistrado(consulta?.interpretacion)}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-border/60 bg-card p-3">
+                <p className="text-xs text-muted-foreground">Incluir medicacion sugerida</p>
+                <p className="text-sm font-medium">
+                  {formatToggleValue(consulta?.incluir_medicacion_sugerida)}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-border/60 bg-card p-3">
+                <p className="text-xs text-muted-foreground">Incluir recomendacion del doctor</p>
+                <p className="text-sm font-medium">
+                  {formatToggleValue(consulta?.incluir_recomendacion_doctor)}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-border/60 bg-card p-3 md:col-span-2">
+                <p className="text-xs text-muted-foreground">Recomendacion del doctor</p>
+                <p className="text-sm font-medium whitespace-pre-wrap">
+                  {noRegistrado(consulta?.recomendacion_doctor)}
                 </p>
               </div>
             </div>

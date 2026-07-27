@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'VitaPrenatal - Sistema de prediccion temprana de riesgo de preeclampsia',
+  title: 'PrenatalRisk AI - Estratificacion Inteligente de Riesgo de Preeclampsia',
   description: 'Sistema de prediccion temprana de riesgo de preeclampsia basado en Machine Learning para apoyo clinico en salud materna',
 }
 

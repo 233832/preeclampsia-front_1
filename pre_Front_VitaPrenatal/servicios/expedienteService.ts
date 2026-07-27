@@ -1,6 +1,7 @@
 import { ExpedienteClinico, ExpedienteResponse } from '../interfaz/expediente';
 import { fetchApi } from './apiClient';
 import { assertApiResponse } from './apiError';
+import { fetchAllPaginated } from './pagination';
 
 export const expedienteService = {
     // Crear un nuevo expediente
@@ -15,10 +16,11 @@ export const expedienteService = {
     },
 
     // Obtener lista de expedientes
-    listar: async (skip: number = 0, limit: number = 100): Promise<ExpedienteResponse[]> => {
-        const response = await fetchApi(`/api/expedientes/?skip=${skip}&limit=${limit}`);
-        await assertApiResponse(response, 'obtener expedientes');
-        return await response.json();
+    listar: async (): Promise<ExpedienteResponse[]> => {
+        return await fetchAllPaginated<ExpedienteResponse>(
+            (skip, limit) => `/api/expedientes/?skip=${skip}&limit=${limit}`,
+            'obtener expedientes',
+        );
     },
 
     // Obtener un expediente por ID
