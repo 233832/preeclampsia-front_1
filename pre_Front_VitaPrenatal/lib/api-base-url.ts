@@ -29,6 +29,11 @@ export function resolveApiOrigin(): string {
     }
   }
 
+  if (typeof window !== "undefined" && window.location.hostname) {
+    const protocol = window.location.protocol || "http:"
+    return `${protocol}//${window.location.hostname}:8000`
+  }
+
   return "http://127.0.0.1:8000"
 }
 
